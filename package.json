@@ -1,0 +1,75 @@
+{
+  "name": "dynamo-pipeline",
+  "version": "0.0.1",
+  "description": "Alternative API for DynamoDB's DocumentClient",
+  "main": "index.js",
+  "repository": "https://github.com/RossWilliams/dynamo-pipeline.git",
+  "author": "RossWilliams",
+  "license": "Apache-2.0",
+  "private": false,
+  "dependencies": {
+    "aws-sdk": "^2.814.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.19",
+    "@typescript-eslint/eslint-plugin": "^4.10.0",
+    "@typescript-eslint/parser": "^4.10.0",
+    "aws-sdk-mock": "^5.1.0",
+    "eslint": "^7.16.0",
+    "eslint-config-prettier": "^7.1.0",
+    "eslint-config-standard": "^16.0.2",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.3.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^5.0.0",
+    "husky": "^4.3.6",
+    "jest": "^26.6.3",
+    "prettier": "^2.2.1",
+    "ts-jest": "^26.4.4",
+    "typescript": "^4.1.3"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
+    "test": "NODE_ENV=test jest",
+    "test:watch": "NODE_ENV=test jest --watch",
+    "test:dynamodb": "TEST_WITH_DYNAMO=true jest",
+    "lint": "eslint './**/*.ts' --cache --cache-location '.buildcache/' --fix --ext .ts",
+    "format": "prettier --write ./**/*.ts"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn lint && yarn format"
+    }
+  },
+  "jest": {
+    "testRegex": "/test/.*\\.test\\.[jt]s?$",
+    "setupFiles": [
+      "./test/jest.setup.ts"
+    ],
+    "moduleFileExtensions": [
+      "mjs",
+      "js",
+      "json",
+      "ts",
+      "node"
+    ],
+    "transform": {
+      "^.+\\.mjs$": "babel-jest",
+      "\\.tsx?$": [
+        "ts-jest"
+      ]
+    },
+    "testPathIgnorePatterns": [
+      "node_modules/",
+      ".buildcache/"
+    ],
+    "verbose": true,
+    "collectCoverage": true
+  },
+  "prettier": {
+    "printWidth": 120,
+    "trailingComma": "es5"
+  }
+}
