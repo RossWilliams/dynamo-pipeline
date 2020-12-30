@@ -15,6 +15,7 @@ class TableIterator {
             iteratorPromises = [];
             for (const item of stride) {
                 const iteratorResponse = iterator(item, this.config.pipeline);
+                // TODO: Improve false return as an early-exit mechanism. not clear to user
                 if (iteratorResponse === false) {
                     await Promise.all(iteratorPromises);
                     // eslint-disable-next-line no-labels
@@ -29,10 +30,9 @@ class TableIterator {
         return this.config.pipeline;
     }
     async map(iterator) {
-        const executor = this.config.fetcher.execute();
         const results = [];
+        const executor = this.config.fetcher.execute();
         let index = 0;
-        // eslint-disable-next-line no-labels
         for await (const stride of executor) {
             for (const item of stride) {
                 results.push(iterator(item, index));
@@ -41,8 +41,9 @@ class TableIterator {
         }
         return results;
     }
-    async all() {
-        return this.map((i) => i);
+    all() {
+        const result = this.map((i) => i);
+        return result;
     }
 }
 exports.TableIterator = TableIterator;

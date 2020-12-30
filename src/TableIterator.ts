@@ -1,18 +1,17 @@
-import { Pipeline } from "./pipeline";
-import { BatchFetcher } from "./AbstractFetcher";
+import { AbstractFetcher } from "./AbstractFetcher";
 import DynamoDB from "aws-sdk/clients/dynamodb";
-export class TableIterator<T = DynamoDB.AttributeMap> {
+export class TableIterator<P, T = DynamoDB.AttributeMap> {
   config: {
-    pipeline: Pipeline;
-    fetcher: BatchFetcher<T>;
+    pipeline: P;
+    fetcher: AbstractFetcher<T>;
   };
 
-  constructor(pipeline: Pipeline, fetcher: BatchFetcher<T>) {
+  constructor(pipeline: P, fetcher: AbstractFetcher<T>) {
     this.config = { pipeline, fetcher };
   }
 
   // when a promise is returned, all promises are resolved in the batch before processing the next batch
-  async forEach(iterator: (item: T, pipeline: Pipeline) => Promise<any> | false | void): Promise<Pipeline> {
+  async forEach(iterator: (item: T, pipeline: P) => Promise<any> | false | void): Promise<P> {
     let iteratorPromises = [];
     const executor = this.config.fetcher.execute();
 
@@ -23,6 +22,7 @@ export class TableIterator<T = DynamoDB.AttributeMap> {
       for (const item of stride) {
         const iteratorResponse = iterator(item, this.config.pipeline);
 
+        // TODO: Improve false return as an early-exit mechanism. not clear to user
         if (iteratorResponse === false) {
           await Promise.all(iteratorPromises);
 
@@ -35,15 +35,16 @@ export class TableIterator<T = DynamoDB.AttributeMap> {
     }
 
     await Promise.all(iteratorPromises);
+
     return this.config.pipeline;
   }
 
   async map<U>(iterator: (item: T, index: number) => U): Promise<U[]> {
-    const executor = this.config.fetcher.execute();
     const results: U[] = [];
+
+    const executor = this.config.fetcher.execute();
     let index = 0;
 
-    // eslint-disable-next-line no-labels
     for await (const stride of executor) {
       for (const item of stride) {
         results.push(iterator(item, index));
@@ -54,7 +55,8 @@ export class TableIterator<T = DynamoDB.AttributeMap> {
     return results;
   }
 
-  async all(): Promise<T[]> {
-    return this.map((i) => i);
+  all(): Promise<T[]> {
+    const result = this.map((i) => i);
+    return result;
   }
 }

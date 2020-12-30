@@ -51,3 +51,6 @@ node_modules/
 
 # Typescript build cache
 .buildcache/
+
+# VSCode Settings
+.vscode/

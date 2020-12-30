@@ -1,40 +1,40 @@
 /// <reference types="node" />
-import { ExpressionAttributeNameMap } from "aws-sdk/clients/dynamodb";
-export declare type Operator = "=" | "<" | ">" | "<=" | ">=" | "<>";
+export declare type Scalar = string | number;
+export declare type ComparisonOperator = "=" | "<" | ">" | "<=" | ">=" | "<>";
 export declare type Logical = "AND" | "OR" | "NOT";
-export declare type QueryOperator = Operator | "begins_with" | "between";
-export declare type ConditionOperator = Operator | "contains" | "attribute_type";
+export declare type QueryOperator = "begins_with" | "between";
+export declare type ConditionOperator = ComparisonOperator | "contains" | "attribute_type";
 export declare type ConditionFunction = "attribute_exists" | "attribute_not_exists";
+export declare type SKQuery = `${Exclude<ComparisonOperator, "<>">} ${Scalar}` | `begins_with ${Scalar}` | `between ${Scalar} and ${Scalar}`;
+export declare type SKQueryParts = [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar] | ["between", Scalar, "and", Scalar];
 export declare type KeyConditions = {
-    pk: string | number | Buffer | Uint8Array;
-    sk?: string;
-    sk2?: string;
-    skOperator?: QueryOperator;
+    pk: Scalar;
+    sk?: SKQuery;
 };
+export declare type DynamoConditionAttributeName = `#p${number}`;
+export declare type DynamoConditionAttributeValue = `:v${number}`;
 export declare type DynamoCondition = {
     Condition: string;
-    ExpressionAttributeNames?: ExpressionAttributeNameMap;
-    ExpressionAttributeValues?: {
-        [key: string]: any;
-    };
+    ExpressionAttributeNames?: Record<DynamoConditionAttributeName, string>;
+    ExpressionAttributeValues?: Record<DynamoConditionAttributeValue, Scalar>;
 };
-export declare type KeySet = {
+export declare type KeyDefinition = {
     pk: string;
     sk?: string;
 };
-export declare type Index = KeySet & {
+export declare type IndexDefinition = KeyDefinition & {
     name: string;
 };
 export declare type KeyType = string | number | Buffer | Uint8Array;
 export declare type KeyTypeName = "N" | "S" | "B";
-export declare type Key = {
-    [x: string]: KeyType;
-};
+export declare type Key<KS extends KeyDefinition = {
+    pk: "id";
+}> = Record<KS["pk"] | Exclude<KS["sk"], undefined>, Scalar>;
 export declare type PrimitiveType = string | number | null | boolean | Buffer | Uint8Array;
 export declare type PrimitiveTypeName = KeyTypeName | "NULL" | "BOOL";
 export declare type PropertyTypeName = PrimitiveTypeName | "M" | "L";
 export declare type DynamoValue = {
-    [_key in PropertyTypeName]?: string | boolean;
+    [_key in PropertyTypeName]?: string | boolean | Array<DynamoValue> | Record<string, DynamoValue>;
 };
 export declare type DynamoPrimitiveValue = {
     [_key in PrimitiveTypeName]?: string | boolean | number;
@@ -67,23 +67,18 @@ declare type In = {
     list: PrimitiveType[];
     operator: "in";
 };
-declare type BaseExpression<T = Operator> = {
+declare type BaseExpression<T = ComparisonOperator> = {
     lhs: LHSOperand;
     rhs: Operand;
     operator: T;
 } | Between | BeginsWith;
 export declare type ConditionExpression = BaseExpression<ConditionOperator> | In | {
-    property: string;
     operator: ConditionFunction;
+    property: string;
 } | {
     lhs?: ConditionExpression;
+    logical: Logical;
     rhs: ConditionExpression;
-    logical: Logical;
-};
-export declare type QueryExpression = BaseExpression | {
-    lhs?: QueryExpression;
-    rhs: QueryExpression;
-    logical: Logical;
 };
 export declare type UpdateReturnValues = "ALL_OLD" | "UPDATED_OLD" | "ALL_NEW" | "UPDATED_NEW";
 export {};

@@ -2,14 +2,19 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QueryFetcher = void 0;
 const AbstractFetcher_1 = require("./AbstractFetcher");
-class QueryFetcher extends AbstractFetcher_1.BatchFetcher {
-    constructor(request, client, operation, batchSize = 100, bufferCapacity = 4, limit) {
-        super(client, bufferCapacity, batchSize, limit);
+class QueryFetcher extends AbstractFetcher_1.AbstractFetcher {
+    constructor(request, client, operation, options) {
+        super(client, options);
         this.request = request;
         this.operation = operation;
         this.nextToken = true;
     }
+    // TODO: remove null response type
     fetchStrategy() {
+        // no support for parallel query
+        // 1. 1 active request allowed at a time
+        // 2. Do not create a new request when the buffer is full
+        // 3. If there are no more items to fetch, exit
         if (this.activeRequests.length > 0 || this.bufferSize > this.bufferCapacity || !this.nextToken) {
             return this.activeRequests[0] || null;
         }
@@ -28,7 +33,7 @@ class QueryFetcher extends AbstractFetcher_1.BatchFetcher {
         }
     }
     // override since filtering results in inconsistent result set size, base buffer on the items returned last
-    // this may give surprising results if the returned list varies considerable, but errs on the side of caution.
+    // this may give surprising results if the returned list varies considerably, but errs on the side of caution.
     getResultBatch(batchSize) {
         const items = super.getResultBatch(batchSize);
         if (items.length) {

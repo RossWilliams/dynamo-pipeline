@@ -29,6 +29,22 @@ export function alwaysMockScan(
   return mockCall("scan", fn, returns, true, delay);
 }
 
+export function mockQuery(
+  fn: WrappedFn<DocumentClient.QueryInput, DocumentClient.QueryOutput>,
+  returns?: MockReturn<DocumentClient.QueryOutput>,
+  delay?: number
+): () => Promise<void> {
+  return mockCall("query", fn, returns, false, delay);
+}
+
+export function alwaysMockQuery(
+  fn: WrappedFn<DocumentClient.QueryInput, DocumentClient.QueryOutput>,
+  returns?: MockReturn<DocumentClient.QueryOutput>,
+  delay?: number
+): () => Promise<void> {
+  return mockCall("query", fn, returns, true, delay);
+}
+
 export function alwaysMockBatchGet(
   fn: WrappedFn<DocumentClient.BatchGetItemInput, DocumentClient.BatchGetItemOutput>,
   returns?: MockReturn<DocumentClient.BatchGetItemOutput>,
@@ -81,8 +97,8 @@ export function mockBatchGet(
 }
 
 export function mockTransactGet(
-  fn: WrappedFn<DocumentClient.BatchGetItemInput, DocumentClient.BatchGetItemOutput>,
-  returns?: MockReturn<DocumentClient.BatchGetItemOutput>,
+  fn: WrappedFn<DocumentClient.TransactGetItemsInput, DocumentClient.TransactGetItemsOutput>,
+  returns?: MockReturn<DocumentClient.TransactGetItemsOutput>,
   delay?: number
 ): () => Promise<void> {
   return mockCall("transactGet", fn, returns, false, delay);

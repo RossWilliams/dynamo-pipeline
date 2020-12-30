@@ -1,12 +1,22 @@
 {
   "name": "dynamo-pipeline",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Alternative API for DynamoDB's DocumentClient",
   "main": "index.js",
   "repository": "https://github.com/RossWilliams/dynamo-pipeline.git",
   "author": "RossWilliams",
   "license": "Apache-2.0",
   "private": false,
+  "scripts": {
+    "postinstall": "yarn build",
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
+    "test": "NODE_ENV=test jest",
+    "test:watch": "NODE_ENV=test jest --watch",
+    "test:dynamodb": "TEST_WITH_DYNAMO=true NODE_ENV=test jest",
+    "lint": "eslint './{src,test}/*.ts' --cache --cache-location '.buildcache/' --fix --ext .ts",
+    "format": "prettier --write ./{src,test}/*.ts"
+  },
   "dependencies": {
     "aws-sdk": "^2.814.0"
   },
@@ -27,16 +37,7 @@
     "jest": "^26.6.3",
     "prettier": "^2.2.1",
     "ts-jest": "^26.4.4",
-    "typescript": "^4.1.3"
-  },
-  "scripts": {
-    "build": "tsc --build",
-    "build:watch": "tsc --build --watch",
-    "test": "NODE_ENV=test jest",
-    "test:watch": "NODE_ENV=test jest --watch",
-    "test:dynamodb": "TEST_WITH_DYNAMO=true jest",
-    "lint": "eslint './**/*.ts' --cache --cache-location '.buildcache/' --fix --ext .ts",
-    "format": "prettier --write ./**/*.ts"
+    "typescript": "next"
   },
   "husky": {
     "hooks": {
@@ -66,7 +67,10 @@
       ".buildcache/"
     ],
     "verbose": true,
-    "collectCoverage": true
+    "collectCoverage": true,
+    "collectCoverageFrom": [
+      "src/**/*.ts"
+    ]
   },
   "prettier": {
     "printWidth": 120,

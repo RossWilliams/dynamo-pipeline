@@ -14,6 +14,7 @@ Suppose you wish to find the first 5000 form items with sk > "0000" which are no
 
 ```typescript
 import { Pipeline } from "dynamo-pipeline";
+
 interface Item {
   id: string;
   sk: string;
@@ -24,14 +25,20 @@ interface Item {
   };
 }
 
-let privatePipeline = new Pipeline("Private-xxx-xxx").withKeys("id", "sk");
+const privatePipeline = new Pipeline("PrivateTableName-xxx", { pk: "id", sk: "sk" });
 
 await privatePipeline
-  .query<Item>({ pk: "FormId", sk: "0000", skOperator: ">" }, undefined, 100, 5000, {
-    lhs: { property: "_isDeleted" },
-    logical: "<>",
-    rhs: false,
-  })
+  .query<Item>(
+    { pk: "FormId", sk: "> 0000" },
+    {
+      limit: 5000,
+      filters: {
+        lhs: { property: "_isDeleted" },
+        logical: "<>",
+        rhs: false,
+      },
+    }
+  )
   .forEach((item, pipeline) => pipeline.update(item, { gsi1pk: data.attr1, gsi1sk: data.attr2 }));
 ```
 
@@ -141,3 +148,9 @@ async function executeQuery(dynamoDbClient, queryInput) {
   }
 }
 ```
+
+## Limitations
+
+1. Partition Keys and Sort Keys only support string type
+1. Multi-table get transactions are untested
+1. Multi-table put transactions are untested

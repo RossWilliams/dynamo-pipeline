@@ -4,8 +4,7 @@
     "plugins": ["@typescript-eslint", "prettier"],
     "parserOptions": {
       "ecmaVersion": 9,
-      "sourceType": "module",
-      "project": "./tsconfig.json"
+      "sourceType": "module"
     },
     "env": {
       "node": true,

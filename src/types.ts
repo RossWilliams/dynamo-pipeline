@@ -1,42 +1,55 @@
 import { ExpressionAttributeNameMap } from "aws-sdk/clients/dynamodb";
 
-export type Operator = "=" | "<" | ">" | "<=" | ">=" | "<>";
+export type Scalar = string | number; // binary is base64 encoded before being send
+export type ComparisonOperator = "=" | "<" | ">" | "<=" | ">=" | "<>";
 export type Logical = "AND" | "OR" | "NOT";
-export type QueryOperator = Operator | "begins_with" | "between";
-export type ConditionOperator = Operator | "contains" | "attribute_type";
-
+export type QueryOperator = "begins_with" | "between";
+export type ConditionOperator = ComparisonOperator | "contains" | "attribute_type";
 export type ConditionFunction = "attribute_exists" | "attribute_not_exists";
 
+export type SKQuery =
+  | `${Exclude<ComparisonOperator, "<>">} ${Scalar}`
+  | `begins_with ${Scalar}`
+  | `between ${Scalar} and ${Scalar}`;
+export type SKQueryParts =
+  | [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar]
+  | ["between", Scalar, "and", Scalar];
+
 export type KeyConditions = {
-  pk: string | number | Buffer | Uint8Array;
-  sk?: string;
-  sk2?: string;
-  skOperator?: QueryOperator;
+  pk: Scalar;
+  sk?: SKQuery;
 };
+
+export type DynamoConditionAttributeName = `#p${number}`;
+export type DynamoConditionAttributeValue = `:v${number}`;
 
 export type DynamoCondition = {
   Condition: string;
-  ExpressionAttributeNames?: ExpressionAttributeNameMap;
-  ExpressionAttributeValues?: { [key: string]: any };
+  ExpressionAttributeNames?: Record<DynamoConditionAttributeName, string>;
+  ExpressionAttributeValues?: Record<DynamoConditionAttributeValue, Scalar>;
 };
 
-export type KeySet = {
+export type KeyDefinition = {
   pk: string;
   sk?: string;
 };
 
-export type Index = KeySet & {
+export type IndexDefinition = KeyDefinition & {
   name: string;
 };
 
 export type KeyType = string | number | Buffer | Uint8Array;
 export type KeyTypeName = "N" | "S" | "B";
-export type Key = { [x: string]: KeyType };
+export type Key<KS extends KeyDefinition = { pk: "id" }> = Record<KS["pk"] | Exclude<KS["sk"], undefined>, Scalar>;
 export type PrimitiveType = string | number | null | boolean | Buffer | Uint8Array;
 
 export type PrimitiveTypeName = KeyTypeName | "NULL" | "BOOL";
 export type PropertyTypeName = PrimitiveTypeName | "M" | "L";
-export type DynamoValue = { [_key in PropertyTypeName]?: string | boolean };
+
+export type DynamoValue = {
+  [_key in PropertyTypeName]?: string | boolean | Array<DynamoValue> | Record<string, DynamoValue>;
+};
+
 export type DynamoPrimitiveValue = {
   [_key in PrimitiveTypeName]?: string | boolean | number;
 };
@@ -59,24 +72,16 @@ type Between = {
 
 type In = { property: string; list: PrimitiveType[]; operator: "in" };
 
-type BaseExpression<T = Operator> = { lhs: LHSOperand; rhs: Operand; operator: T } | Between | BeginsWith;
+type BaseExpression<T = ComparisonOperator> = { lhs: LHSOperand; rhs: Operand; operator: T } | Between | BeginsWith;
 
 export type ConditionExpression =
   | BaseExpression<ConditionOperator>
   | In
-  | { property: string; operator: ConditionFunction }
+  | { operator: ConditionFunction; property: string }
   | {
       lhs?: ConditionExpression;
+      logical: Logical;
       rhs: ConditionExpression;
-      logical: Logical;
-    };
-
-export type QueryExpression =
-  | BaseExpression
-  | {
-      lhs?: QueryExpression;
-      rhs: QueryExpression;
-      logical: Logical;
     };
 
 // removes the string option from type definition

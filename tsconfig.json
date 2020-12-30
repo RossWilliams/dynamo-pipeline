@@ -12,7 +12,10 @@
         "noImplicitAny": true,
         "noImplicitReturns": true,
         "noImplicitThis": true,
-        "noUnusedLocals": false
+        "noUnusedLocals": false,
+        "noUncheckedIndexedAccess": true,
+        "alwaysStrict": true,
+        "strictNullChecks": true
     },
     "include": [
         "src/index.ts"

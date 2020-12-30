@@ -6,30 +6,29 @@ const BatchFetcher_1 = require("./BatchFetcher");
 const TableIterator_1 = require("./TableIterator");
 const QueryFetcher_1 = require("./QueryFetcher");
 class Pipeline {
-    constructor(table, config) {
+    constructor(tableName, tableKeys, config) {
         this.config = {
-            table,
+            table: tableName,
             indexes: {},
-            tableKeys: { pk: "id" },
+            // shortcut to use KD, otherwise type definitions throughout the
+            // class are too long
+            tableKeys: tableKeys,
             client: (config && config.client) || new dynamodb_1.DocumentClient(),
             ...config,
         };
         this.unprocessedItems = [];
         return this;
     }
-    // defaults to keys of type string
-    withKeys(pk, sk) {
-        this.config.tableKeys = {
-            pk,
-            sk,
-        };
+    withKeys(tableKeys) {
+        return new Pipeline(this.config.table, tableKeys, {
+            ...this.config,
+        });
+    }
+    withIndex(name, keyDefinition) {
+        this.config.indexes[name] = { ...keyDefinition };
         return this;
     }
-    withIndex(name, pk, sk) {
-        this.config.indexes[name] = { pk, sk, name };
-        return this;
-    }
-    withReadBuffer(readBuffer) {
+    withReadBuffer(readBuffer = 4) {
         this.config.readBuffer = readBuffer;
         return this;
     }
@@ -40,108 +39,45 @@ class Pipeline {
         this.config.writeBuffer = writeBuffer;
         return this;
     }
-    buildQueryScanRequest(index, limit = 0, keyConditions, filters) {
-        const request = {
-            TableName: this.config.table,
-            ...(limit && {
-                Limit: limit,
-            }),
-            ...(index && { IndexName: index.name }),
-            ...(keyConditions && {
-                // TODO: Names and values needed for escaping
-                KeyConditionExpression: `#p0 = :v0` + (keyConditions.sk ? `AND ${operatorToSymbol(keyConditions.skOperator || "=")}` : ""),
-            }),
+    queryIndex(indexName, KeyConditions, options) {
+        return this.query(KeyConditions, { ...options, indexName });
+    }
+    query(keyConditions, options) {
+        const request = this.buildQueryScanRequest({ ...options, keyConditions });
+        const iteratorOptions = {
+            readBuffer: this.config.readBuffer,
+            ...options,
         };
-        const keySubstitues = {
-            Condition: "",
-            ExpressionAttributeNames: keyConditions
-                ? {
-                    "#p0": index ? index.pk : this.config.tableKeys.pk,
-                    ...(keyConditions.sk && {
-                        "#p1": index ? index.sk : this.config.tableKeys.sk,
-                    }),
-                }
-                : undefined,
-            ExpressionAttributeValues: keyConditions
-                ? {
-                    ":v0": keyConditions.pk,
-                    ...(keyConditions.sk && {
-                        ":v1": keyConditions.sk,
-                    }),
-                    ...(keyConditions.sk2 && {
-                        ":v2": keyConditions.sk2,
-                    }),
-                }
-                : undefined,
+        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "query", iteratorOptions));
+    }
+    scanIndex(indexName, options) {
+        return this.scan({ ...options, indexName });
+    }
+    scan(options) {
+        const request = this.buildQueryScanRequest(options !== null && options !== void 0 ? options : {});
+        const iteratorOptions = {
+            bufferCapacity: this.config.readBuffer,
+            ...options,
         };
-        if (filters) {
-            // TODO: When key conditions names and values are escaped, this needs updating
-            const compiledCondition = conditionToDynamo(filters, keySubstitues);
-            request.FilterExpression = compiledCondition.Condition;
-            request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
-            request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
-        }
-        else {
-            request.ExpressionAttributeNames = keySubstitues.ExpressionAttributeNames;
-            request.ExpressionAttributeValues = keySubstitues.ExpressionAttributeValues;
-        }
-        return request;
-    }
-    queryIndex(name, selection, batchSize, limit) {
-        const index = this.config.indexes[name];
-        if (!index) {
-            throw new Error("Index not found: " + name);
-        }
-        return this.query(selection, index, batchSize, limit);
-    }
-    query(selection, index, batchSize, limit, filters) {
-        var _a;
-        const request = this.buildQueryScanRequest(index, limit, selection, filters);
-        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "query", batchSize, (_a = this.config.readBuffer) !== null && _a !== void 0 ? _a : 4, limit));
-    }
-    scanIndex(name, batchSize, limit) {
-        const index = this.config.indexes[name];
-        if (!index) {
-            throw new Error("Index not found: " + name);
-        }
-        return this.scan(batchSize, limit, index);
-    }
-    scan(batchSize, limit, index, filters) {
-        var _a;
-        const request = this.buildQueryScanRequest(index, limit, undefined, filters);
-        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "scan", batchSize, (_a = this.config.readBuffer) !== null && _a !== void 0 ? _a : 4, limit));
+        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "scan", iteratorOptions));
     }
     transactGet(keys) {
         var _a;
-        const handleUnprocessed = (keys) => {
-            this.unprocessedItems.push(...keys);
-        };
-        const normalise = (key) => "tableName" in key && typeof key.keys === "object" && !Array.isArray(key.keys)
-            ? key
-            : typeof key.keys === "object" && !Array.isArray(key.keys)
-                ? { tableName: this.config.table, keys: key.keys }
-                : { tableName: this.config.table, keys: key };
-        const transactGetItems = [];
-        keys.forEach((keySet) => {
-            // multiple transact gets
-            if (Array.isArray(keySet)) {
-                const cluster = [];
-                keySet.forEach((key) => {
-                    const item = normalise(key);
-                    cluster.push(item);
-                });
-                transactGetItems.push(cluster);
-            }
-            else {
-                // single transact get
-                transactGetItems[0] = transactGetItems[0] || [];
-                transactGetItems[0].push(normalise(keySet));
-            }
-        });
-        return new TableIterator_1.TableIterator(this, new BatchFetcher_1.BatchGetFetcher(this.config.client, "transactGet", transactGetItems, undefined, (_a = this.config.readBuffer) !== null && _a !== void 0 ? _a : 4, handleUnprocessed));
+        // get keys into a standard format, filter out any non-key attributes
+        const transactGetItems = typeof keys[0] !== "undefined" && !("tableName" in keys[0]) && !("keys" in keys[0])
+            ? keys.map((k) => ({
+                tableName: this.config.table,
+                keys: this.keyAttributesOnly(k, this.config.tableKeys),
+            }))
+            : keys.map((key) => ({
+                tableName: key.tableName,
+                keys: this.keyAttributesOnly(key.keys, key.keyDefinition),
+            }));
+        return new TableIterator_1.TableIterator(this, new BatchFetcher_1.BatchGetFetcher(this.config.client, "transactGet", transactGetItems, {
+            bufferCapacity: (_a = this.config.readBuffer) !== null && _a !== void 0 ? _a : 4,
+        }));
     }
     getItems(keys, batchSize = 100) {
-        var _a;
         const handleUnprocessed = (keys) => {
             this.unprocessedItems.push(...keys);
         };
@@ -149,12 +85,13 @@ class Pipeline {
             throw new Error("Batch size out of range");
         }
         // filter out any non-key attributes
-        const tableKeys = keys.map((k) => ({
-            [this.config.tableKeys.pk]: k[this.config.tableKeys.pk],
-            ...(this.config.tableKeys.sk && { [this.config.tableKeys.sk]: k[this.config.tableKeys.sk] }),
+        const tableKeys = this.keyAttributesOnlyFromArray(keys, this.config.tableKeys);
+        const batchGetItems = { tableName: this.config.table, keys: tableKeys };
+        return new TableIterator_1.TableIterator(this, new BatchFetcher_1.BatchGetFetcher(this.config.client, "batchGet", batchGetItems, {
+            batchSize,
+            bufferCapacity: this.config.readBuffer,
+            onUnprocessedKeys: handleUnprocessed,
         }));
-        const batchGetItems = [{ tableName: this.config.table, keyItems: tableKeys }];
-        return new TableIterator_1.TableIterator(this, new BatchFetcher_1.BatchGetFetcher(this.config.client, "batchGet", batchGetItems, batchSize, (_a = this.config.readBuffer) !== null && _a !== void 0 ? _a : 4, handleUnprocessed));
     }
     putItems(items) {
         const chunks = [];
@@ -163,7 +100,9 @@ class Pipeline {
         while (i < n) {
             chunks.push(items.slice(i, (i += this.config.writeBuffer || 25)));
         }
+        // TODO: Abstract into helper, will be needed for transact write
         return Promise.all(chunks.map((chunk) => this.config.client
+            // TODO: use document client to get retry logic
             .batchWrite({
             RequestItems: {
                 [this.config.table]: chunk.map((item) => ({
@@ -175,21 +114,20 @@ class Pipeline {
         })
             .promise()
             .catch((e) => {
-            console.error("Error: AWS Error,", e);
+            console.error("Error: AWS Error, Put Items", e);
             this.unprocessedItems.push(...chunk);
         })
             .then((results) => {
             var _a;
             if (results && results.UnprocessedItems && (((_a = results.UnprocessedItems[this.config.table]) === null || _a === void 0 ? void 0 : _a.length) || 0) > 0) {
-                this.unprocessedItems.push(...results.UnprocessedItems[this.config.table].map((ui) => { var _a; return (_a = ui.PutRequest) === null || _a === void 0 ? void 0 : _a.Item; }));
+                this.unprocessedItems.push(
+                // eslint-disable-next-line
+                ...results.UnprocessedItems[this.config.table].map((ui) => { var _a; return (_a = ui.PutRequest) === null || _a === void 0 ? void 0 : _a.Item; }));
             }
             return results;
         })));
     }
     put(item, condition) {
-        if (!this.config.table) {
-            throw new Error("Table not set");
-        }
         const request = {
             TableName: this.config.table,
             Item: item,
@@ -204,7 +142,7 @@ class Pipeline {
             .put(request)
             .promise()
             .catch((e) => {
-            console.error("Error: AWS Error,", e);
+            console.error("Error: AWS Error, Put,", e);
             this.unprocessedItems.push(item);
         })
             .then(() => this);
@@ -216,13 +154,7 @@ class Pipeline {
         };
         return this.put(item, pkCondition);
     }
-    update(pk, sk, attributes, condition, returnType) {
-        if (!this.config.tableKeys) {
-            throw new Error("Table keys not set");
-        }
-        if (!sk && this.config.tableKeys.sk) {
-            throw new Error("Sort Key Required");
-        }
+    update(key, attributes, options) {
         // TODO: Cleanup and extact
         const expression = Object.keys(attributes)
             .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
@@ -234,7 +166,7 @@ class Pipeline {
         }), {});
         const request = {
             TableName: this.config.table,
-            Key: formatKeys(this.config.tableKeys, { pk, sk }),
+            Key: this.keyAttributesOnly(key, this.config.tableKeys),
             UpdateExpression: `SET ${expression}`,
             ...(Object.keys(expressionNames).length > 0 && {
                 ExpressionAttributeNames: expressionNames,
@@ -242,10 +174,10 @@ class Pipeline {
             ...(Object.keys(expressionValues).length > 0 && {
                 ExpressionAttributeValues: expressionValues,
             }),
-            ...(returnType && { ReturnValues: returnType }),
+            ...((options === null || options === void 0 ? void 0 : options.returnType) && { ReturnValues: options.returnType }),
         };
-        if (condition) {
-            const compiledCondition = conditionToDynamo(condition, {
+        if (options === null || options === void 0 ? void 0 : options.condition) {
+            const compiledCondition = conditionToDynamo(options.condition, {
                 Condition: "",
                 ...(Object.keys(expressionNames).length > 0 && {
                     ExpressionAttributeNames: expressionNames,
@@ -262,32 +194,21 @@ class Pipeline {
             .update(request)
             .promise()
             .catch((e) => {
-            var _a;
-            console.error("Error: AWS Error,", e);
-            this.unprocessedItems.push({
-                pk,
-                ...(sk && ((_a = this.config.tableKeys) === null || _a === void 0 ? void 0 : _a.sk) && { sk }),
-                attributes,
-            });
+            console.error("Error: AWS Error, Update", e);
+            this.unprocessedItems.push(key);
         })
             .then((d) => {
             return d && "Attributes" in d && d.Attributes ? d.Attributes : null;
         });
     }
-    delete(pk, sk, condition, returnType) {
-        if (!this.config.tableKeys) {
-            throw new Error("Table keys not set");
-        }
-        if (!sk && this.config.tableKeys.sk) {
-            throw new Error("Table sort key not set");
-        }
+    delete(key, options) {
         const request = {
             TableName: this.config.table,
-            Key: formatKeys(this.config.tableKeys, { pk, sk }),
-            ...(returnType && { ReturnValues: returnType }),
+            Key: this.keyAttributesOnly(key, this.config.tableKeys),
+            ...((options === null || options === void 0 ? void 0 : options.returnType) && { ReturnValues: options.returnType }),
         };
-        if (condition) {
-            const compiledCondition = conditionToDynamo(condition);
+        if (options === null || options === void 0 ? void 0 : options.condition) {
+            const compiledCondition = conditionToDynamo(options.condition);
             request.ConditionExpression = compiledCondition.Condition;
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
@@ -305,8 +226,10 @@ class Pipeline {
             .delete(request)
             .promise()
             .catch((e) => {
-            console.error("Error: AWS Error,", e);
-            this.unprocessedItems.push({ pk, sk });
+            if (options === null || options === void 0 ? void 0 : options.reportError) {
+                console.error("Error: AWS Error, Delete", e, request);
+                this.unprocessedItems.push(key);
+            }
         })
             .then((old) => (old && "Attributes" in old && old.Attributes ? old.Attributes : null));
     }
@@ -314,33 +237,88 @@ class Pipeline {
         this.unprocessedItems.map(callback);
         return this;
     }
+    buildQueryScanRequest(options) {
+        var _a, _b;
+        let index;
+        if (options.indexName) {
+            const indexInConfig = this.config.indexes[options.indexName];
+            if (indexInConfig) {
+                index = { ...indexInConfig, name: options.indexName };
+            }
+        }
+        if (options.indexName && typeof index === "undefined") {
+            throw new Error(`Specified index not configured. You must specify index keys before accessing index ${options.indexName}`);
+        }
+        const request = {
+            TableName: this.config.table,
+            ...(options.limit && {
+                Limit: options.limit,
+            }),
+            ...(index && { IndexName: index.name }),
+            ...(options.keyConditions && {
+                KeyConditionExpression: `#p0 = :v0` +
+                    ("sk" in options.keyConditions && options.keyConditions.sk
+                        ? ` AND #p1 ${skQueryToDynamoString(options.keyConditions.sk)}`
+                        : ""),
+            }),
+        };
+        const [_1, skVal1, _2, skVal2] = ((_a = options.keyConditions) === null || _a === void 0 ? void 0 : _a.sk)
+            ? splitSkQueryToParts((_b = options.keyConditions) === null || _b === void 0 ? void 0 : _b.sk)
+            : [undefined, undefined, undefined, undefined];
+        const keySubstitues = {
+            Condition: "",
+            ExpressionAttributeNames: options.keyConditions
+                ? {
+                    "#p0": index ? index.pk : this.config.tableKeys.pk,
+                    ...(options.keyConditions.sk && {
+                        "#p1": index ? index.sk : this.config.tableKeys.sk,
+                    }),
+                }
+                : undefined,
+            ExpressionAttributeValues: options.keyConditions
+                ? {
+                    ":v0": options.keyConditions.pk,
+                    ...(typeof skVal1 !== "undefined" && {
+                        ":v1": skVal1,
+                    }),
+                    ...(typeof skVal2 !== "undefined" && {
+                        ":v2": skVal2,
+                    }),
+                }
+                : undefined,
+        };
+        if (options.filters) {
+            const compiledCondition = conditionToDynamo(options.filters, keySubstitues);
+            request.FilterExpression = compiledCondition.Condition;
+            request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
+            request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
+        }
+        else {
+            request.ExpressionAttributeNames = keySubstitues.ExpressionAttributeNames;
+            request.ExpressionAttributeValues = keySubstitues.ExpressionAttributeValues;
+        }
+        return request;
+    }
+    keyAttributesOnlyFromArray(items, keyDefinition) {
+        return items.map((item) => this.keyAttributesOnly(item, keyDefinition));
+    }
+    keyAttributesOnly(item, keyDefinition) {
+        return {
+            [keyDefinition.pk]: item[keyDefinition.pk],
+            ...(typeof this.config.tableKeys.sk === "string" && {
+                [this.config.tableKeys.sk]: item[this.config.tableKeys.sk],
+            }),
+        };
+    }
 }
 exports.Pipeline = Pipeline;
-const formatKeys = (keys, item) => ({
-    [pkName(keys)]: item.pk,
-    ...(keys.sk && {
-        [keys.sk]: item.sk,
-    }),
-});
 const pkName = (keys) => keys.pk;
-// const skName = (keys: KeySet) => keys.sk;
-// const validatePk = (keys: KeySet, item: any) =>
-// pkName(keys) in item && typeof item[pkName(keys)] === (typeof keys.pk === "string" ? "string" : keys.pk.type);
-function operatorToSymbol(operator) {
-    switch (operator) {
-        case "begins_with":
-            return `begins_with(#p1, :v1)`;
-        case "between":
-            return `#p1 BETWEEN :v1 AND :v2`;
-        case ">":
-        case "<":
-        case ">=":
-        case "<=":
-        case "=":
-            return `#p1 ${operator} :v1`;
-        default:
-            throw new Error("Operator not found: " + operator);
-    }
+function skQueryToDynamoString(operatorString) {
+    const [operator, _value1, and, value2] = splitSkQueryToParts(operatorString);
+    return `${operator} :v1 ${and ? "AND" : ""} ${value2 ? ":v2" : ""}`;
+}
+function splitSkQueryToParts(operatorString) {
+    return operatorString.split(" ");
 }
 function conditionToDynamo(condition, mergeCondition) {
     const result = mergeCondition ||
@@ -351,9 +329,10 @@ function conditionToDynamo(condition, mergeCondition) {
         return result;
     }
     if ("logical" in condition) {
+        const preCondition = result.Condition;
         const logicalLhs = conditionToDynamo(condition.lhs, result);
         const logicalRhs = conditionToDynamo(condition.rhs, {
-            ...result,
+            Condition: preCondition,
             ExpressionAttributeNames: {
                 ...result.ExpressionAttributeNames,
                 ...logicalLhs.ExpressionAttributeNames,
@@ -377,6 +356,8 @@ function conditionToDynamo(condition, mergeCondition) {
             if (!result.ExpressionAttributeNames) {
                 result.ExpressionAttributeNames = {};
             }
+            // @ts-expect-error: Object.entries hard codes string as the key type,
+            // and indexing by template strings is invalid in ts 4.2.0
             result.ExpressionAttributeNames[name] = value;
         });
         Object.entries({
@@ -386,6 +367,8 @@ function conditionToDynamo(condition, mergeCondition) {
             if (!result.ExpressionAttributeValues) {
                 result.ExpressionAttributeValues = {};
             }
+            // @ts-expect-error:  Object.entries hard codes string as the key type
+            // and indexing by template strings is invalid in ts 4.2.0
             result.ExpressionAttributeValues[name] = value;
         });
         return result;

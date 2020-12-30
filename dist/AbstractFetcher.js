@@ -1,47 +1,28 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BatchFetcher = void 0;
-class BatchFetcher {
-    constructor(client, bufferCapacity, batchSize, limit) {
+exports.AbstractFetcher = void 0;
+class AbstractFetcher {
+    constructor(client, options) {
+        var _a, _b;
         this.activeRequests = [];
         this.bufferSize = 0;
         this.bufferCapacity = 1;
         this.totalReturned = 0;
         this.results = [];
+        this.errors = null;
         this.documentClient = client;
-        this.bufferCapacity = bufferCapacity;
-        this.batchSize = batchSize;
-        this.limit = limit;
+        this.bufferCapacity = (_a = options.bufferCapacity) !== null && _a !== void 0 ? _a : 4;
+        this.batchSize = (_b = options.batchSize) !== null && _b !== void 0 ? _b : 100;
+        this.limit = options.limit;
     }
-    // take in a promise to allow recursive calls
-    fetchNext(promise) {
-        if (promise) {
-            this.setupFetchProcessor(promise);
-        }
+    // take in a promise to allow recursive calls,
+    // batch fetcher can immediately create many requests
+    fetchNext() {
         const fetchResponse = this.fetchStrategy();
         if (fetchResponse instanceof Promise && !this.activeRequests.includes(fetchResponse)) {
-            this.setupFetchProcessor(fetchResponse);
+            return this.setupFetchProcessor(fetchResponse);
         }
         return fetchResponse;
-    }
-    // Entry point.
-    async *execute() {
-        let count = 0;
-        do {
-            if (!this.hasDataReady()) {
-                await this.fetchNext();
-            }
-            const batch = this.getResultBatch(Math.min(this.batchSize, this.limit ? this.limit - count : 100000));
-            count += batch.length;
-            if (!this.isDone() && (!this.limit || count < this.limit)) {
-                // do not await here.
-                this.fetchNext();
-            }
-            yield batch;
-            if (this.limit && count >= this.limit) {
-                return;
-            }
-        } while (!this.isDone());
     }
     setupFetchProcessor(promise) {
         this.activeRequests.push(promise);
@@ -53,8 +34,30 @@ class BatchFetcher {
         })
             .catch((e) => {
             this.activeRequests = this.activeRequests.filter((r) => r !== promise);
-            console.error("Error: AWS Error,", e);
+            this.processError(e);
         });
+    }
+    // Entry point.
+    async *execute() {
+        let count = 0;
+        do {
+            if (this.errors) {
+                return Promise.reject(this.errors);
+            }
+            if (!this.hasDataReady()) {
+                await this.fetchNext();
+            }
+            const batch = this.getResultBatch(Math.min(this.batchSize, this.limit ? this.limit - count : 100000));
+            count += batch.length;
+            if (!this.isDone() && (!this.limit || count < this.limit)) {
+                // do not await here, background process the next set of data
+                this.fetchNext();
+            }
+            yield batch;
+            if (this.limit && count >= this.limit) {
+                return;
+            }
+        } while (!this.isDone());
     }
     getResultBatch(batchSize) {
         const items = (this.results.length && this.results.splice(0, batchSize)) || [];
@@ -66,6 +69,9 @@ class BatchFetcher {
         }
         return items;
     }
+    processError(e) {
+        this.errors = e;
+    }
     hasDataReady() {
         return this.results.length > 0;
     }
@@ -76,4 +82,4 @@ class BatchFetcher {
         return this.activeRequests.length > 0;
     }
 }
-exports.BatchFetcher = BatchFetcher;
+exports.AbstractFetcher = AbstractFetcher;

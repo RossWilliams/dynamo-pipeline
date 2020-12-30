@@ -43,7 +43,15 @@ export async function ensureDatabaseExists(tableName: string): Promise<void> {
       status = await dynamodb
         .describeTable({ TableName: tableName })
         .promise()
-        .then((result) => result.Table?.TableStatus || "FAILURE");
+        .then((result) => {
+          const indexStatus = result.Table?.GlobalSecondaryIndexes?.pop()?.IndexStatus;
+          if (indexStatus !== "ACTIVE") {
+            return "CREATING";
+          }
+
+          const tableStatus = result.Table?.TableStatus || "FAILURE";
+          return tableStatus;
+        });
     }
   }
 }

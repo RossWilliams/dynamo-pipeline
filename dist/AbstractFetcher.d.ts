@@ -1,5 +1,5 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
-export declare abstract class BatchFetcher<T> {
+export declare abstract class AbstractFetcher<T> {
     protected activeRequests: Promise<any>[];
     protected bufferSize: number;
     protected bufferCapacity: number;
@@ -9,13 +9,19 @@ export declare abstract class BatchFetcher<T> {
     protected nextToken: any | null;
     protected documentClient: DocumentClient;
     protected results: T[];
-    constructor(client: DocumentClient, bufferCapacity: number, batchSize: number, limit?: number);
+    protected errors: Error | null;
+    constructor(client: DocumentClient, options: {
+        batchSize?: number;
+        bufferCapacity?: number;
+        limit?: number;
+    });
     abstract fetchStrategy(): Promise<void> | null;
     abstract processResult(data: Record<string, any>): void;
-    protected fetchNext(promise?: Promise<any> | null): Promise<void> | null;
-    execute(): AsyncGenerator<T[], void, void>;
+    protected fetchNext(): Promise<void> | null;
     private setupFetchProcessor;
+    execute(): AsyncGenerator<T[], void, void>;
     getResultBatch(batchSize: number): T[];
+    processError(e: Error): void;
     hasDataReady(): boolean;
     isDone(): boolean;
     isActive(): boolean;
