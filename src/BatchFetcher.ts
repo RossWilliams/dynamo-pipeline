@@ -27,19 +27,24 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     this.onUnprocessedKeys = options.onUnprocessedKeys;
 
     if (operation === "batchGet" && !Array.isArray(items)) {
-      const chunks: BatchGetItems<KD>[] = [];
-      const n = items.keys.length;
-      let i = 0;
-      while (i < n) {
-        chunks.push({ tableName: items.tableName, keys: items.keys.slice(i, (i += this.batchSize)) });
-      }
-      this.chunks = chunks;
+      this.chunks = this.chunkBatchRequests(items);
     } else {
       // Transactions don't support chunking, its a transaction
       this.chunks = [items as TransactGetItems<KD>];
     }
 
     this.nextToken = 0;
+  }
+
+  private chunkBatchRequests(items: BatchGetItems<KD>) {
+    const chunks: BatchGetItems<KD>[] = [];
+    const n = items.keys.length;
+    let i = 0;
+    while (i < n) {
+      chunks.push({ tableName: items.tableName, keys: items.keys.slice(i, (i += this.batchSize)) });
+    }
+
+    return chunks;
   }
 
   retry(): Promise<void> | null {
@@ -184,7 +189,11 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
   }
 }
 
-function notEmpty<T>(val: T | null | undefined): val is T {
+function notEmpty<T>(val: T | null | undefined | []): val is T {
+  if (Array.isArray(val) && !val.length) {
+    return false;
+  }
+
   return !!val;
 }
 

@@ -1,4 +1,4 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DocumentClient, ExpressionAttributeNameMap, ExpressionAttributeValueMap } from "aws-sdk/clients/dynamodb";
 import AWS from "aws-sdk";
 import { Request } from "aws-sdk/lib/request";
 import AWSMock from "aws-sdk-mock";
@@ -11,6 +11,25 @@ type MockReturn<TOutput> = { err?: Error; data?: TOutput } | { err?: Error; data
 
 export function setMockOn(on: boolean): void {
   mockOn = on;
+}
+
+interface MockSet<TOutput = {}> {
+  name: "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
+  returns?: MockReturn<TOutput>;
+  delay?: number;
+}
+
+export function multiMock(
+  fn: (client: DocumentClient, spies: jest.MockContext<any, any[]>[]) => Promise<void>,
+  mockSet: MockSet[]
+): () => Promise<void> {
+  return async () => {
+    const spies = mockSet.map((ms) => setupMock(ms.name, ms.returns, true, ms.delay).mock);
+    const client = new (AWS as any).DynamoDB.DocumentClient();
+
+    await fn(client, spies);
+    mockSet.forEach((ms) => teardownMock(ms.name, true));
+  };
 }
 
 export function mockScan(
@@ -83,9 +102,10 @@ export function alwaysMockBatchWrite(
 
 export function mockBatchWrite(
   fn: WrappedFn<DocumentClient.BatchWriteItemInput, DocumentClient.BatchWriteItemOutput>,
-  returns?: MockReturn<DocumentClient.BatchWriteItemOutput>
+  returns?: MockReturn<DocumentClient.BatchWriteItemOutput>,
+  delay?: number
 ): () => Promise<void> {
-  return mockCall("batchWrite", fn, returns);
+  return mockCall("batchWrite", fn, returns, false, delay);
 }
 
 export function mockBatchGet(
@@ -112,29 +132,7 @@ function mockCall<TInput, TOutput>(
   delay?: number
 ) {
   return async () => {
-    const spy = jest.fn<Request<TOutput, Error>, [TInput, any?]>();
-    let callCount = 0;
-    if (mockOn || alwaysMock) {
-      AWSMock.setSDKInstance(AWS);
-      AWSMock.mock("DynamoDB.DocumentClient", name, function (input: TInput, callback: (err: any, args: any) => void) {
-        spy(input);
-        if (Array.isArray(returns)) {
-          if (typeof delay === "number") {
-            setTimeout(() => {
-              callback(returns[callCount]?.err, returns[callCount]?.data);
-              callCount += 1;
-            }, delay);
-          } else {
-            callback(returns[callCount]?.err, returns[callCount]?.data);
-            callCount += 1;
-          }
-        } else if (typeof delay === "number") {
-          setTimeout(() => callback(returns?.err, returns?.data), delay);
-        } else {
-          callback(returns?.err, returns?.data);
-        }
-      });
-    }
+    const spy = setupMock<TInput, TOutput>(name, returns, alwaysMock, delay);
 
     // TODO: Type cleanup
     const client = new (AWS as any).DynamoDB.DocumentClient();
@@ -149,8 +147,45 @@ function mockCall<TInput, TOutput>(
       await fn(client, spy.mock);
     }
 
-    if (mockOn || alwaysMock) {
-      AWSMock.restore("DynamoDB.DocumentClient");
-    }
+    teardownMock(name, alwaysMock);
   };
+}
+
+function setupMock<TInput, TOutput>(
+  name: string,
+  returns: MockReturn<TOutput> = {},
+  alwaysMock: boolean,
+  delay?: number
+) {
+  const spy = jest.fn<Request<TOutput, Error>, [TInput, any?]>();
+  let callCount = 0;
+  if (mockOn || alwaysMock) {
+    AWSMock.setSDKInstance(AWS);
+    AWSMock.mock("DynamoDB.DocumentClient", name, function (input: TInput, callback: (err: any, args: any) => void) {
+      spy(input);
+      if (Array.isArray(returns)) {
+        if (typeof delay === "number") {
+          setTimeout(() => {
+            callback(returns[callCount]?.err, returns[callCount]?.data);
+            callCount += 1;
+          }, delay);
+        } else {
+          callback(returns[callCount]?.err, returns[callCount]?.data);
+          callCount += 1;
+        }
+      } else if (typeof delay === "number") {
+        setTimeout(() => callback(returns?.err, returns?.data), delay);
+      } else {
+        callback(returns?.err, returns?.data);
+      }
+    });
+  }
+
+  return spy;
+}
+
+function teardownMock(name: string, alwaysMock?: boolean) {
+  if (mockOn || alwaysMock) {
+    AWSMock.restore("DynamoDB.DocumentClient", name);
+  }
 }

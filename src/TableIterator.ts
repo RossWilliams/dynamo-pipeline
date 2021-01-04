@@ -1,12 +1,15 @@
-import { AbstractFetcher } from "./AbstractFetcher";
 import DynamoDB from "aws-sdk/clients/dynamodb";
+
+interface IteratorExecutor<T> {
+  execute(): AsyncGenerator<T[], void, void>;
+}
 export class TableIterator<P, T = DynamoDB.AttributeMap> {
   config: {
     pipeline: P;
-    fetcher: AbstractFetcher<T>;
+    fetcher: IteratorExecutor<T>;
   };
 
-  constructor(pipeline: P, fetcher: AbstractFetcher<T>) {
+  constructor(pipeline: P, fetcher: IteratorExecutor<T>) {
     this.config = { pipeline, fetcher };
   }
 

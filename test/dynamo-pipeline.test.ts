@@ -1,4 +1,4 @@
-import { Pipeline } from "../src/Pipeline";
+import { Pipeline } from "../src/";
 import {
   mockPut,
   setMockOn,
@@ -24,7 +24,7 @@ When running against DynamoDB:
 3. Tests are kept to under 4,000 WCUs, can be run on newly created on-demand table.
 */
 const TEST_WITH_DYNAMO = process.env.TEST_WITH_DYNAMO === "true" || process.env.TEST_WITH_DYNAMO === "1";
-const TEST_TABLE = process.env.TEST_WITH_DYNAMO_TABLE || "dynamo-pipeline-e677beee-e15b-44c4-bee2-e0558699b597";
+const TEST_TABLE = process.env.TEST_WITH_DYNAMO_TABLE || "dynamo-pipeline-e0558699b598";
 
 describe("Dynamo Pipeline", () => {
   beforeAll(async () => {
@@ -41,7 +41,7 @@ describe("Dynamo Pipeline", () => {
   afterAll(async () => {
     if (TEST_WITH_DYNAMO) {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
-      // await pipeline.scan<{ id: string; sk: string }>().forEach((item, _) => pipeline.delete(item));
+      await pipeline.scan<{ id: string; sk: string }>().forEach((item, _) => pipeline.delete(item));
     }
   });
 
@@ -357,26 +357,37 @@ describe("Dynamo Pipeline", () => {
 
     test(
       "putItems with more than 25 items batches into multiple writes",
-      mockBatchWrite(async (client, _spy) => {
-        const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+      mockBatchWrite(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
-        const items = new Array(53).fill(0).map((_, i) => ({
-          id: "putMany:" + i,
-          sk: i.toString(),
-          other: new Array(6)
-            .fill(0)
-            .map(() => Math.random().toString(36).substring(2, 15))
-            .join(""),
-        }));
+          // On-Demand tables start with capacity of 4000 WCU, use 6000 WCUs to stress system
+          const items = new Array(6000).fill(0).map((_, i) => ({
+            id: "putMany:6000",
+            sk: i.toString(),
+            other: new Array(6)
+              .fill(0)
+              .map(() => Math.random().toString(36).substring(2, 15))
+              .join(""),
+          }));
 
-        await pipeline.putItems(items);
-        expect(pipeline.unprocessedItems.length).toEqual(0);
-      })
+          await pipeline.putItems(items, { bufferCapacity: 250 });
+          if (TEST_WITH_DYNAMO) {
+            const inserted = await pipeline.query({ pk: "putMany:6000" }).all();
+            expect(inserted.length).toEqual(6000);
+          }
+
+          expect(pipeline.unprocessedItems.length).toEqual(0);
+        },
+        [],
+        20
+      ),
+      30000
     );
 
     test(
       "putItems with invalid item returns the invalid chunk.",
-      mockBatchWrite(
+      alwaysMockBatchWrite(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
@@ -390,10 +401,16 @@ describe("Dynamo Pipeline", () => {
           }));
           items.push({ id: "putMany:bad", other: 1 });
           items.push({ id: "putMany:bad2", other: 1 });
-          await pipeline.putItems(items);
+          const result = pipeline.putItems(items);
+
+          try {
+            await result;
+          } catch {}
+
+          expect(result).rejects.toBeDefined();
           expect(pipeline.unprocessedItems.length).toEqual(5);
         },
-        [{ data: {} }, { data: {} }, { err: new Error("err") }]
+        [{ data: {} }, { data: {} }, { err: Error("err") }]
       )
     );
 
@@ -410,13 +427,22 @@ describe("Dynamo Pipeline", () => {
           await pipeline.putItems(items);
           expect(pipeline.unprocessedItems.length).toEqual(1);
         },
-        {
-          data: {
-            UnprocessedItems: {
-              [TEST_TABLE]: [{ PutRequest: { Item: { id: "putMany:bad2", sk: "2", other: 1 } } }],
+        [
+          {
+            data: {
+              UnprocessedItems: {
+                [TEST_TABLE]: [{ PutRequest: { Item: { id: "putMany:bad2", sk: "2", other: 1 } } }],
+              },
             },
           },
-        }
+          {
+            data: {
+              UnprocessedItems: {
+                [TEST_TABLE]: [{ PutRequest: { Item: { id: "putMany:bad2", sk: "2", other: 1 } } }],
+              },
+            },
+          },
+        ]
       )
     );
   });
@@ -555,6 +581,8 @@ describe("Dynamo Pipeline", () => {
           { id: "delete:2", sk: "2", other: 2 },
           { id: "delete:3", sk: "3", other: 3 },
         ]);
+
+        expect(pipeline.unprocessedItems.length).toEqual(0);
       })
     );
 
@@ -672,6 +700,7 @@ describe("Dynamo Pipeline", () => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
         await pipeline.putItems(items);
+        expect(pipeline.unprocessedItems.length).toEqual(0);
       })
     );
 
@@ -728,7 +757,10 @@ describe("Dynamo Pipeline", () => {
 
           const result: Data[] = await scanner.all();
           expect(result.length).toEqual(80);
-          expect(spy.calls.length).toEqual(2);
+          if (!TEST_WITH_DYNAMO) {
+            // filter makes dynamo target unstable in number of calls
+            expect(spy.calls.length).toEqual(2);
+          }
         },
         [{ data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } }, { data: { Items: items.slice(50, 100) } }]
       )
@@ -753,7 +785,10 @@ describe("Dynamo Pipeline", () => {
 
           const result: Data[] = await scanner.all();
           expect(result.length).toEqual(80);
-          expect(spy.calls.length).toEqual(2);
+          if (!TEST_WITH_DYNAMO) {
+            // filter makes dynamo target unstable in number of calls
+            expect(spy.calls.length).toEqual(2);
+          }
         },
         [{ data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } }, { data: { Items: items.slice(50, 100) } }]
       )
@@ -776,8 +811,8 @@ describe("Dynamo Pipeline", () => {
 
           let processing = false;
           await scanner.forEach(() => {
-            if (!processing) {
-              // expect(spy.calls.length).toEqual(2);
+            if (!processing && !TEST_WITH_DYNAMO) {
+              expect(spy.calls.length).toEqual(2);
             }
             processing = true;
           });
@@ -1050,6 +1085,7 @@ describe("Dynamo Pipeline", () => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withKeys({ pk: "id", sk: "sk" });
 
         await pipeline.putItems(items);
+        expect(pipeline.unprocessedItems.length).toEqual(0);
       })
     );
 
@@ -1278,6 +1314,7 @@ describe("Dynamo Pipeline", () => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
         await pipeline.putItems(items);
+        expect(pipeline.unprocessedItems.length).toEqual(0);
       })
     );
 
@@ -1348,6 +1385,7 @@ describe("Dynamo Pipeline", () => {
 
         await pipeline.putItems(items);
         await pipeline.putItems(items2);
+        expect(pipeline.unprocessedItems.length).toEqual(0);
       })
     );
 

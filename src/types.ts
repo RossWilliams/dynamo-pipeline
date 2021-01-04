@@ -1,5 +1,3 @@
-import { ExpressionAttributeNameMap } from "aws-sdk/clients/dynamodb";
-
 export type Scalar = string | number; // binary is base64 encoded before being send
 export type ComparisonOperator = "=" | "<" | ">" | "<=" | ">=" | "<>";
 export type Logical = "AND" | "OR" | "NOT";

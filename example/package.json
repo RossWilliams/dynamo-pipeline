@@ -1,0 +1,44 @@
+{
+  "name": "dynamo-pipeline-example",
+  "version": "1.0.0",
+  "description": "Example use of dynamo-pipeline",
+  "main": "example-lambda.ts",
+  "author": "RossWilliams",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "test": "NODE_ENV=test jest"
+  },
+  "jest": {
+    "testRegex": "/(example)/.*\\.test\\.[jt]s?$",
+    "setupFiles": [
+      "../test/jest.setup.ts"
+    ],
+    "moduleFileExtensions": [
+      "mjs",
+      "js",
+      "json",
+      "ts",
+      "node"
+    ],
+    "transform": {
+      "^.+\\.mjs$": "babel-jest",
+      "\\.tsx?$": [
+        "ts-jest"
+      ]
+    },
+    "testPathIgnorePatterns": [
+      "node_modules/",
+      ".buildcache/"
+    ],
+    "verbose": true,
+    "collectCoverage": true,
+    "collectCoverageFrom": [
+      "example-lambda.ts"
+    ]
+  },
+  "prettier": {
+    "printWidth": 120,
+    "trailingComma": "es5"
+  }
+}

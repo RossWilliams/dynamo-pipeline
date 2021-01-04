@@ -21,6 +21,7 @@ import {
 import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { QueryFetcher } from "./QueryFetcher";
+import { BatchWriter } from "./BatchWriter";
 
 export class Pipeline<
   PK extends string,
@@ -94,6 +95,7 @@ export class Pipeline<
     options?: {
       batchSize?: number;
       limit?: number;
+      filters?: ConditionExpression;
     }
   ): TableIterator<this, ReturnType> {
     return this.query<ReturnType>(KeyConditions, { ...options, indexName });
@@ -206,47 +208,20 @@ export class Pipeline<
     );
   }
 
-  putItems<I extends Key<KD>>(
-    items: I[]
-  ): Promise<(void | PromiseResult<DocumentClient.BatchWriteItemOutput, AWSError>)[]> {
-    const chunks = [];
-    let i = 0;
-    const n = items.length;
+  async putItems<I extends Key<KD>>(
+    items: I[],
+    options?: { bufferCapacity: number; disableSlowStart?: boolean }
+  ): Promise<void> {
+    const handleUnprocessed = (keys: Key<KD>[]) => {
+      this.unprocessedItems.push(...keys);
+    };
 
-    while (i < n) {
-      chunks.push(items.slice(i, (i += this.config.writeBuffer || 25)));
-    }
-
-    // TODO: Abstract into helper, will be needed for transact write
-    return Promise.all(
-      chunks.map((chunk) =>
-        this.config.client
-          // TODO: use document client to get retry logic
-          .batchWrite({
-            RequestItems: {
-              [this.config.table]: chunk.map((item) => ({
-                PutRequest: {
-                  Item: item,
-                },
-              })),
-            },
-          })
-          .promise()
-          .catch((e) => {
-            console.error("Error: AWS Error, Put Items", e);
-            this.unprocessedItems.push(...chunk);
-          })
-          .then((results) => {
-            if (results && results.UnprocessedItems && (results.UnprocessedItems[this.config.table]?.length || 0) > 0) {
-              this.unprocessedItems.push(
-                // eslint-disable-next-line
-                ...results.UnprocessedItems[this.config.table]!.map((ui) => ui.PutRequest?.Item as I)
-              );
-            }
-            return results;
-          })
-      )
+    const writer = new BatchWriter(
+      this.config.client,
+      { tableName: this.config.table, records: items },
+      { ...options, onUnprocessedItems: handleUnprocessed }
     );
+    await writer.execute();
   }
 
   put(item: Record<string, any>, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>> {
