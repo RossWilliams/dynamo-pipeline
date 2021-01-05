@@ -246,7 +246,7 @@ export class Pipeline<
       .then(() => this);
   }
 
-  putIfNotExists(item: Record<string, any>): Promise<any> {
+  putIfNotExists(item: Record<string, any>): Promise<Pipeline<PK, SK>> {
     const pkCondition: ConditionExpression = {
       operator: "attribute_not_exists",
       property: pkName(this.config.tableKeys),

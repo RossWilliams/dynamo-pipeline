@@ -5,17 +5,16 @@ type BatchWriteItems<KD extends KeyDefinition> = { tableName: string; records: K
 
 export class BatchWriter<KD extends KeyDefinition> {
   private client: DocumentClient;
+  private tableName: string;
   private activeRequests: Promise<any>[] = [];
   private chunks: Key<KD>[][];
-  private batchSize: number = 25;
-  private bufferCapacity: number = 100;
-  private tableName: string;
-  private errors: Error | null = null;
   private nextToken: number | null;
   private retryKeys: Key<KD>[][] | null = [];
+  private errors: Error | null = null;
+  private batchSize: number = 25;
+  private bufferCapacity: number = 100;
   private backoffActive: boolean = false;
   private onUnprocessedItems: ((keys: Key<KD>[]) => void) | undefined;
-  private slowStart: boolean = true;
 
   constructor(
     client: DocumentClient,
@@ -24,7 +23,6 @@ export class BatchWriter<KD extends KeyDefinition> {
       onUnprocessedItems?: (keys: Key<KD>[]) => void;
       batchSize?: number;
       bufferCapacity?: number;
-      disableSlowStart?: boolean;
     }
   ) {
     this.client = client;
@@ -34,7 +32,6 @@ export class BatchWriter<KD extends KeyDefinition> {
     this.onUnprocessedItems = options.onUnprocessedItems;
     this.chunks = this.chunkBatchWrites(items as BatchWriteItems<KD>);
     this.nextToken = 0;
-    this.slowStart = !options.disableSlowStart;
   }
 
   async execute(): Promise<void> {
@@ -45,10 +42,6 @@ export class BatchWriter<KD extends KeyDefinition> {
 
       if (!this.isDone()) {
         await this.writeChunk();
-
-        if (this.slowStart) {
-          await waitms(this.slowStart ? this.getSlowStartWait() : 1000 / this.bufferCapacity);
-        }
       }
     } while (!this.isDone());
 
@@ -76,6 +69,7 @@ export class BatchWriter<KD extends KeyDefinition> {
       return this.activeRequests[0] || null;
     } else if (!this.hasNextChunk()) {
       this.nextToken = null;
+      // let the caller wait until all active requests are finished
       return Promise.all(this.activeRequests);
     }
 
@@ -95,16 +89,9 @@ export class BatchWriter<KD extends KeyDefinition> {
       if (request && typeof request.on === "function") {
         request.on("retry", (e?: { error?: { retryable?: boolean } }) => {
           if (e?.error?.retryable) {
-            // reduce buffer capacity
+            // reduce buffer capacity on retryable error
             this.bufferCapacity = Math.max(Math.floor((this.bufferCapacity * 3) / 4), 5);
             this.backoffActive = true;
-          }
-        });
-        request.on("complete", (e: any) => {
-          if (this.backoffActive) {
-            if (!e?.data?.UnprocessedItems) {
-              this.backoffActive = false;
-            }
           }
         });
       }
@@ -144,7 +131,8 @@ export class BatchWriter<KD extends KeyDefinition> {
 
   private processResult(data: DocumentClient.BatchWriteItemOutput | void, request: Promise<any>): void {
     this.activeRequests = this.activeRequests.filter((r) => r !== request);
-    if (!this.activeRequests.length) {
+
+    if (!this.activeRequests.length || !data || !data.UnprocessedItems) {
       this.backoffActive = false;
     }
 
@@ -178,12 +166,6 @@ export class BatchWriter<KD extends KeyDefinition> {
 
     return true;
   }
-
-  private getSlowStartWait(): number {
-    const reduction = this.bufferCapacity / 1.2; // 80% reduction from full speed
-    const additional = Math.max(reduction - Math.floor((this.nextToken || 1) / 5), 0);
-    return Math.min(1000 / (this.bufferCapacity - additional), 100);
-  }
 }
 
 function notEmpty<T>(val: T | null | undefined | []): val is T {
@@ -196,8 +178,4 @@ function notEmpty<T>(val: T | null | undefined | []): val is T {
 
 function splitInHalf<T>(arr: T[]): T[][] {
   return [arr.slice(0, Math.ceil(arr.length / 2)), arr.slice(Math.ceil(arr.length / 2), arr.length)];
-}
-
-function waitms(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

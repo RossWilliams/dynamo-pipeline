@@ -371,7 +371,7 @@ describe("Dynamo Pipeline", () => {
               .join(""),
           }));
 
-          await pipeline.putItems(items, { bufferCapacity: 250 });
+          await pipeline.putItems(items, { bufferCapacity: 60 });
           if (TEST_WITH_DYNAMO) {
             const inserted = await pipeline.query({ pk: "putMany:6000" }).all();
             expect(inserted.length).toEqual(6000);

@@ -31,11 +31,13 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
       return this.activeRequests[0] || null;
     }
 
-    const promise = this.documentClient[this.operation]({
+    const request = {
       ...(this.request.Limit && { Limit: this.request.Limit - this.totalReturned }),
       ...this.request,
       ...(this.nextToken && this.nextToken !== true && { ExclusiveStartKey: this.nextToken }),
-    }).promise();
+    };
+
+    const promise = this.documentClient[this.operation](request).promise();
 
     return promise;
   }

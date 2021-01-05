@@ -17,7 +17,6 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
   async forEach(iterator: (item: T, pipeline: P) => Promise<any> | false | void): Promise<P> {
     let iteratorPromises = [];
     const executor = this.config.fetcher.execute();
-
     // eslint-disable-next-line no-labels
     strides: for await (const stride of executor) {
       await Promise.all(iteratorPromises);

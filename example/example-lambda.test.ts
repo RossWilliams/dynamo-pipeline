@@ -1,4 +1,4 @@
-import { mockUpdate, mockDelete, mockQuery, mockPut, multiMock } from "../test/helpers";
+import { mockUpdate, multiMock } from "../test/helpers";
 import { handler } from "./example-lambda";
 
 const testEvent = {
@@ -12,14 +12,10 @@ describe("Example Lambda", () => {
     "Throws when invalid startDateTime event property is supplied",
     mockUpdate(
       async (_client, spy) => {
-        try {
-          await handler({ ...testEvent, startDateTime: "INVALID" });
-          expect(1).toEqual(2);
-          expect(spy.calls.length).toEqual(0);
-        } catch (exception) {
-          expect(exception.message).toEqual("Invalid startDateTime in Event");
-          expect(spy.calls.length).toEqual(0);
-        }
+        const result = await handler({ ...testEvent, startDateTime: "INVALID" });
+
+        expect(spy.calls.length).toEqual(0);
+        expect("error" in result && result.error).toEqual("Invalid startDateTime in Event");
       },
       { data: { Attributes: { currentVersion: 2 } } }
     )
@@ -30,13 +26,14 @@ describe("Example Lambda", () => {
     mockUpdate(
       async (_client, spy) => {
         const result = await handler({ ...testEvent, expectedVersion: 0 });
-        expect(spy.calls.length).toEqual(1);
         const request = spy.calls[0]![0]; // eslint-disable-line
+
+        expect(spy.calls.length).toEqual(1);
         expect(request.ConditionExpression).toBeTruthy();
         expect(request.ExpressionAttributeValues?.[":v2"]).toEqual(0);
-        expect(result).not.toBeDefined();
+        expect("error" in result && result.error).toEqual("Version Conflict Error");
       },
-      { data: { Attributes: { currentVersion: { N: 2 } } } }
+      { data: { Attributes: { currentVersion: 2 } } }
     )
   );
 
@@ -44,15 +41,17 @@ describe("Example Lambda", () => {
     "When expected version is valid, queries existing calendar items in next 7 days",
     multiMock(
       async (_client, spies) => {
+        const result = await handler(testEvent);
         const querySpy = spies[1]!;
-        await handler(testEvent);
+
+        expect("error" in result).toBeFalsy();
         expect(querySpy.calls.length).toEqual(1);
         const request = querySpy.calls[0]![0];
         expect(request.IndexName).toEqual("gsi1");
         expect(request.KeyConditionExpression!.includes("between")).toBeTruthy();
       },
       [
-        { name: "update", returns: { data: { Attributes: { currentVersion: { N: 2 } } } } },
+        { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
         { name: "query", returns: { data: { Items: [] } } },
         { name: "delete" },
         { name: "put" },
@@ -65,9 +64,11 @@ describe("Example Lambda", () => {
     multiMock(
       async (_client, spies) => {
         const deleteSpy = spies[2]!; // eslint-disable-line
+
         await handler(testEvent);
-        expect(deleteSpy.calls.length).toEqual(3);
         const deleteKeys = deleteSpy.calls.map((call) => call[0].Key);
+
+        expect(deleteSpy.calls.length).toEqual(3);
         expect(deleteKeys[0]!.pk).toEqual("1");
         expect(deleteKeys[0]!.sk).toEqual("1");
         expect(deleteKeys[1]!.pk).toEqual("2");
@@ -88,7 +89,7 @@ describe("Example Lambda", () => {
             },
           },
         },
-        { name: "update", returns: { data: { Attributes: { currentVersion: { N: 2 } } } } },
+        { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
         { name: "delete" },
         { name: "put" },
       ]
@@ -100,10 +101,11 @@ describe("Example Lambda", () => {
     multiMock(
       async (_queryClient, spies) => {
         const putSpy = spies[0]!; // eslint-disable-line
+
         await handler(testEvent);
-        expect(putSpy.calls.length).toEqual(1);
         const request = putSpy.calls[0]![0];
 
+        expect(putSpy.calls.length).toEqual(1);
         expect(request.Item.start).toEqual(testEvent.startDateTime);
         expect(request.Item.gsi1pk).toEqual(testEvent.userId);
       },
@@ -122,7 +124,7 @@ describe("Example Lambda", () => {
           },
         },
         { name: "delete" },
-        { name: "update", returns: { data: { Attributes: { currentVersion: { N: 2 } } } } },
+        { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
       ]
     )
   );
