@@ -34,14 +34,14 @@ describe("Dynamo Pipeline", () => {
     }
     if (TEST_WITH_DYNAMO) {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
-      await pipeline.scan<{ id: string; sk: string }>().forEach((item, _) => pipeline.delete(item));
+      await pipeline.scan<{ id: string; sk: string }>().forEach((item) => pipeline.delete(item));
     }
   }, 30000);
 
   afterAll(async () => {
     if (TEST_WITH_DYNAMO) {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
-      await pipeline.scan<{ id: string; sk: string }>().forEach((item, _) => pipeline.delete(item));
+      await pipeline.scan<{ id: string; sk: string }>().forEach((item) => pipeline.delete(item));
     }
   });
 
@@ -844,7 +844,7 @@ describe("Dynamo Pipeline", () => {
 
           let checked = false;
           let index = 0;
-          await scanner.forEach((_item) => {
+          await scanner.forEach(() => {
             if (!checked && index === 45) {
               expect(spy.calls.length).toEqual(2);
               checked = true;
@@ -878,8 +878,8 @@ describe("Dynamo Pipeline", () => {
               value: "scan:",
             },
           });
-          await scanner.forEach((i) => {
-            result.push(i);
+          await scanner.forEach((item) => {
+            result.push(item);
             // a single response is 10 items, so a read buffer of 1 will still buffer 10 items.
             expect((spy.calls.length - 1) * 10 - result.length).toBeLessThanOrEqual(10);
 
@@ -998,8 +998,8 @@ describe("Dynamo Pipeline", () => {
               value: "scan:",
             },
           });
-          await scanner.forEach((i) => {
-            result.push(i);
+          await scanner.forEach((item) => {
+            result.push(item);
             // find the buffered items, subtract out processed items, should be less than the max buffer.
             expect((spy.calls.length - 1) * 10 - result.length).toBeLessThanOrEqual(batchSize * readBuffer + batchSize);
 
@@ -1041,8 +1041,8 @@ describe("Dynamo Pipeline", () => {
               value: "scan:",
             },
           });
-          await scanner.forEach((i) => {
-            result.push(i);
+          await scanner.forEach((item) => {
+            result.push(item);
             if (result.length === 8) {
               return false;
             }
@@ -1064,6 +1064,37 @@ describe("Dynamo Pipeline", () => {
           { data: { Items: items.slice(70, 80), LastEvaluatedKey: { N: 8 } } },
           { data: { Items: items.slice(80, 90), LastEvaluatedKey: { N: 9 } } },
           { data: { Items: items.slice(90, 100) } },
+        ],
+        1
+      )
+    );
+
+    test(
+      "Using forEach will give the correct index number for each item returned",
+      mockScan(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          type Data = { id: string; sk: string; other: string };
+          const scanner = pipeline.scan<Data>({
+            batchSize: 50,
+            filters: {
+              property: "id",
+              operator: "begins_with",
+              value: "scan:",
+            },
+          });
+
+          const seenIndexes: boolean[] = Array(100).fill(false);
+
+          await scanner.forEach((_item, index) => {
+            seenIndexes[index] = true;
+          });
+
+          expect(seenIndexes.every((i) => i)).toEqual(true);
+        },
+        [
+          { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(50, 100) } },
         ],
         1
       )
@@ -1246,7 +1277,7 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
           let index = 0;
-          await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).forEach((_item) => {
+          await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).forEach(() => {
             if (index === 39) {
               expect(spy.calls.length).toEqual(4);
             } else if (index === 40) {

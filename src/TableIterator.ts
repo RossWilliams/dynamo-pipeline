@@ -14,7 +14,8 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
   }
 
   // when a promise is returned, all promises are resolved in the batch before processing the next batch
-  async forEach(iterator: (item: T, pipeline: P) => Promise<any> | false | void): Promise<P> {
+  async forEach(iterator: (item: T, index: number, pipeline: P) => Promise<any> | false | void): Promise<P> {
+    let index = 0;
     let iteratorPromises = [];
     const executor = this.config.fetcher.execute();
     // eslint-disable-next-line no-labels
@@ -22,7 +23,8 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
       await Promise.all(iteratorPromises);
       iteratorPromises = [];
       for (const item of stride) {
-        const iteratorResponse = iterator(item, this.config.pipeline);
+        const iteratorResponse = iterator(item, index, this.config.pipeline);
+        index += 1;
 
         // TODO: Improve false return as an early-exit mechanism. not clear to user
         if (iteratorResponse === false) {
