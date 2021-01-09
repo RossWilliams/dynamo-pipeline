@@ -1,6 +1,4 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
-import { AWSError } from "aws-sdk/lib/error";
-import { PromiseResult } from "aws-sdk/lib/request";
 
 import {
   IndexDefinition,
@@ -34,6 +32,8 @@ export class Pipeline<
     tableKeys: KD;
     readBuffer?: number;
     writeBuffer?: number;
+    readBatchSize?: number;
+    writeBatchSize?: number;
     indexes: {
       [key: string]: KeyDefinition | undefined;
     };
@@ -47,6 +47,8 @@ export class Pipeline<
       client?: DocumentClient;
       readBuffer?: number;
       writeBuffer?: number;
+      readBatchSize?: number;
+      writeBatchSize?: number;
       indexes?: {
         [key: string]: KeyDefinition | undefined;
       };
@@ -55,6 +57,10 @@ export class Pipeline<
     this.config = {
       table: tableName,
       indexes: {},
+      readBuffer: 1,
+      writeBuffer: 30,
+      readBatchSize: 100,
+      writeBatchSize: 25,
       // shortcut to use KD, otherwise type definitions throughout the
       // class are too long
       tableKeys: (tableKeys as unknown) as KD,
@@ -76,16 +82,35 @@ export class Pipeline<
     return this;
   }
 
-  withReadBuffer(readBuffer = 4): Pipeline<PK, SK, KD> {
+  withReadBuffer(readBuffer = 1): Pipeline<PK, SK, KD> {
+    if (readBuffer < 0) {
+      throw new Error("Read buffer out of range");
+    }
     this.config.readBuffer = readBuffer;
     return this;
   }
 
-  withWriteBuffer(writeBuffer = 20): Pipeline<PK, SK, KD> {
-    if (writeBuffer > 25 || writeBuffer < 1) {
+  withWriteBuffer(writeBuffer = 30): Pipeline<PK, SK, KD> {
+    if (writeBuffer < 0) {
       throw new Error("Write buffer out of range");
     }
     this.config.writeBuffer = writeBuffer;
+    return this;
+  }
+
+  withReadBatchSize(readBatchSize = 25): Pipeline<PK, SK, KD> {
+    if (readBatchSize < 1) {
+      throw new Error("Read batch size out of range");
+    }
+    this.config.readBatchSize = readBatchSize;
+    return this;
+  }
+
+  withWriteBatchSize(writeBatchSize = 25): Pipeline<PK, SK, KD> {
+    if (writeBatchSize < 1 || writeBatchSize > 25) {
+      throw new Error("Write batch size out of range");
+    }
+    this.config.writeBatchSize = writeBatchSize;
     return this;
   }
 
@@ -94,6 +119,7 @@ export class Pipeline<
     KeyConditions: KeyConditions,
     options?: {
       batchSize?: number;
+      bufferCapacity?: number;
       limit?: number;
       filters?: ConditionExpression;
     }
@@ -106,27 +132,22 @@ export class Pipeline<
     options?: {
       indexName?: string;
       batchSize?: number;
+      bufferCapacity?: number;
       limit?: number;
       filters?: ConditionExpression;
-      readBuffer?: number;
     }
   ): TableIterator<this, ReturnType> {
     const request = this.buildQueryScanRequest({ ...options, keyConditions });
 
-    const iteratorOptions = {
-      readBuffer: this.config.readBuffer,
+    const fetchOptions = {
+      bufferCapacity: this.config.readBuffer,
+      batchSize: this.config.readBatchSize,
       ...options,
     };
 
     return new TableIterator<this, ReturnType>(
       this,
-      new QueryFetcher<ReturnType>(
-        request,
-        this.config.client,
-        "query",
-
-        iteratorOptions
-      )
+      new QueryFetcher<ReturnType>(request, this.config.client, "query", fetchOptions)
     );
   }
 
@@ -134,6 +155,7 @@ export class Pipeline<
     indexName: string,
     options?: {
       batchSize?: number;
+      bufferCapacity?: number;
       limit?: number;
       filters?: ConditionExpression;
     }
@@ -143,26 +165,30 @@ export class Pipeline<
 
   scan<ReturnType = DocumentClient.AttributeMap>(options?: {
     batchSize?: number;
+    bufferCapacity?: number;
     limit?: number;
     indexName?: string;
     filters?: ConditionExpression;
-    readBuffer?: number;
   }): TableIterator<this, ReturnType> {
     const request = this.buildQueryScanRequest(options ?? {});
 
-    const iteratorOptions = {
+    const fetchOptions = {
       bufferCapacity: this.config.readBuffer,
+      batchSize: this.config.readBatchSize,
       ...options,
     };
 
     return new TableIterator<this, ReturnType>(
       this,
-      new QueryFetcher<ReturnType>(request, this.config.client, "scan", iteratorOptions)
+      new QueryFetcher<ReturnType>(request, this.config.client, "scan", fetchOptions)
     );
   }
 
   transactGet<T = DocumentClient.AttributeMap, KD2 extends KD = KD>(
-    keys: Key<KD>[] | { tableName: string; keys: Key<KD2>; keyDefinition: KD2 }[]
+    keys: Key<KD>[] | { tableName: string; keys: Key<KD2>; keyDefinition: KD2 }[],
+    options?: {
+      bufferCapacity?: number;
+    }
   ): TableIterator<this, T> {
     // get keys into a standard format, filter out any non-key attributes
     const transactGetItems: { tableName: string; keys: Key<KD | KD2> }[] =
@@ -179,18 +205,26 @@ export class Pipeline<
     return new TableIterator<this, T>(
       this,
       new BatchGetFetcher<T, KD>(this.config.client, "transactGet", transactGetItems, {
-        bufferCapacity: this.config.readBuffer ?? 4,
+        bufferCapacity: this.config.readBuffer,
+        ...options,
       })
     );
   }
 
-  getItems<T = DocumentClient.AttributeMap>(keys: Key<KD>[], batchSize = 100): TableIterator<this, T> {
+  getItems<T = DocumentClient.AttributeMap>(
+    keys: Key<KD>[],
+    options?: { batchSize?: number; bufferCapacity?: number }
+  ): TableIterator<this, T> {
     const handleUnprocessed = (keys: Key<KD>[]) => {
       this.unprocessedItems.push(...keys);
     };
 
-    if (batchSize > 100 || batchSize < 1) {
+    if (typeof options?.batchSize === "number" && (options.batchSize > 100 || options.batchSize < 1)) {
       throw new Error("Batch size out of range");
+    }
+
+    if (typeof options?.bufferCapacity === "number" && options.bufferCapacity < 0) {
+      throw new Error("Buffer capacity is out of range");
     }
 
     // filter out any non-key attributes
@@ -201,27 +235,43 @@ export class Pipeline<
     return new TableIterator<this, T>(
       this,
       new BatchGetFetcher<T, KD>(this.config.client, "batchGet", batchGetItems, {
-        batchSize,
+        batchSize: this.config.readBatchSize,
         bufferCapacity: this.config.readBuffer,
         onUnprocessedKeys: handleUnprocessed,
+        ...options,
       })
     );
   }
 
   async putItems<I extends Key<KD>>(
     items: I[],
-    options?: { bufferCapacity: number; disableSlowStart?: boolean }
-  ): Promise<void> {
+    options?: { bufferCapacity?: number; disableSlowStart?: boolean; batchSize?: number }
+  ): Promise<Pipeline<PK, SK>> {
     const handleUnprocessed = (keys: Key<KD>[]) => {
       this.unprocessedItems.push(...keys);
     };
 
+    if (typeof options?.bufferCapacity === "number" && options.bufferCapacity < 0) {
+      throw new Error("Buffer capacity is out of range");
+    }
+
+    if (typeof options?.batchSize === "number" && options.batchSize < 1) {
+      throw new Error("Batch size is out of range");
+    }
+
     const writer = new BatchWriter(
       this.config.client,
       { tableName: this.config.table, records: items },
-      { ...options, onUnprocessedItems: handleUnprocessed }
+      {
+        batchSize: this.config.writeBatchSize,
+        bufferCapacity: this.config.writeBuffer,
+        onUnprocessedItems: handleUnprocessed,
+        ...options,
+      }
     );
+
     await writer.execute();
+    return this;
   }
 
   put(item: Record<string, any>, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>> {
@@ -373,7 +423,7 @@ export class Pipeline<
     batchSize?: number;
     limit?: number;
     filters?: ConditionExpression;
-    readBuffer?: number;
+    bufferCapacity?: number;
   }): DocumentClient.ScanInput | DocumentClient.QueryInput {
     let index: IndexDefinition | undefined;
     if (options.indexName) {
@@ -697,68 +747,3 @@ function conditionToAttributeNames(condition: ConditionExpression, countStart = 
 function splitAndSetPropertyName(propertyName: string, names: { [key: string]: string }, countStart: number) {
   return propertyName.split(".").forEach((prop) => (names["#p" + (Object.keys(names).length + countStart)] = prop));
 }
-
-/*
-function propToType(item: any): PropertyTypeName {
-  if (typeof item === "string") {
-    return "S";
-  } else if (!isNaN(item)) {
-    return "N";
-  } else if (Array.isArray(item)) {
-    return "L";
-  } else if (item === null) {
-    return "NULL";
-  } else if (item === true || item === false) {
-    return "BOOL";
-  } else if (typeof item === "object" && "length" in item) {
-    return "B";
-  } else if (typeof item === "object") {
-    return "M";
-  }
-
-  throw new Error("Type cannot be determined," + item);
-}
-*/
-/*
-function propToValue<T extends { [key: string]: any }>(item: T, name: string): AttributeValue {
-  const val = name.split(".").reduce((acc, curr) => acc[curr], item);
-  return {
-    [propToType(val)]: val,
-  };
-}
-
-function propToPrimitiveType(item: PrimitiveType): PrimitiveTypeName {
-  if (typeof item === "string") {
-    return "S";
-  } else if (item === null) {
-    return "NULL";
-  } else if (item === true || item === false) {
-    return "BOOL";
-  } else if (typeof item === "object" && "length" in item) {
-    return "B";
-  } else if (!isNaN(item)) {
-    return "N";
-  }
-
-  throw new Error("Type cannot be determined," + item);
-}
-*/
-
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flat
-/*
-function flatten(input: any[]) {
-  const stack = [...input];
-  const res = [];
-  while (stack.length) {
-    const next = stack.pop();
-    if (Array.isArray(next)) {
-      // push back array items, won't modify the original input
-      stack.push(...next);
-    } else {
-      res.push(next);
-    }
-  }
-  // reverse to restore input order
-  return res.reverse();
-}
-*/

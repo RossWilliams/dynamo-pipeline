@@ -9,19 +9,22 @@ class BatchGetFetcher extends AbstractFetcher_1.AbstractFetcher {
         this.operation = operation;
         this.onUnprocessedKeys = options.onUnprocessedKeys;
         if (operation === "batchGet" && !Array.isArray(items)) {
-            const chunks = [];
-            const n = items.keys.length;
-            let i = 0;
-            while (i < n) {
-                chunks.push({ tableName: items.tableName, keys: items.keys.slice(i, (i += this.batchSize)) });
-            }
-            this.chunks = chunks;
+            this.chunks = this.chunkBatchRequests(items);
         }
         else {
             // Transactions don't support chunking, its a transaction
             this.chunks = [items];
         }
         this.nextToken = 0;
+    }
+    chunkBatchRequests(items) {
+        const chunks = [];
+        const n = items.keys.length;
+        let i = 0;
+        while (i < n) {
+            chunks.push({ tableName: items.tableName, keys: items.keys.slice(i, (i += this.batchSize)) });
+        }
+        return chunks;
     }
     retry() {
         this.chunks = this.retryKeys || [];
@@ -143,6 +146,9 @@ class BatchGetFetcher extends AbstractFetcher_1.AbstractFetcher {
 }
 exports.BatchGetFetcher = BatchGetFetcher;
 function notEmpty(val) {
+    if (Array.isArray(val) && !val.length) {
+        return false;
+    }
     return !!val;
 }
 function splitInHalf(arr) {

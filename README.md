@@ -6,6 +6,12 @@ Alternative API for DynamoDB DocumentClient to improve types, allow easy iterati
 
 Code is functional, but developer ergonomics and data structures will change significantly.
 
+### Limitations
+
+1. Partition Keys and Sort Keys only support string type
+1. Limited transaction support
+1. Some dynamodb request options are not available
+
 ## Example
 
 Suppose you wish to find the first 5000 form items with sk > "0000" which are not deleted, and for each item, add 'gsi1pk' and 'gsi1sk' attributes to each item.
@@ -40,6 +46,8 @@ await privatePipeline
     }
   )
   .forEach((item, pipeline) => pipeline.update(item, { gsi1pk: data.attr1, gsi1sk: data.attr2 }));
+
+privatePipeline.handleUnprocessed((item) => console.error(`Update Failed: id: ${item.id} , sk: ${item.sk}`));
 ```
 
 ### NoSQL Workbench Generated Code + Looping logic
@@ -51,6 +59,7 @@ const dynamoDbClient = createDynamoDbClient();
 const queryInput = createQueryInput();
 let isFirstQuery = true;
 let itemsProcessed = 0;
+const updateErrors = [];
 
 while ((isFirstQuery || queryInput.LastEvaluatedKey) && itemsProcessed < 5000) {
   isFirstQuery = false;
@@ -71,6 +80,8 @@ while ((isFirstQuery || queryInput.LastEvaluatedKey) && itemsProcessed < 5000) {
     queryInput.LastEvaluatedKey = result.LastEvaluatedKey;
   }
 }
+
+updateErrors.forEach((err) => console.error(`Update Failed: id: ${item.id} , sk: ${item.sk}`));
 
 function createDynamoDbClient() {
   return new AWS.DynamoDB();
@@ -135,7 +146,7 @@ async function executeUpdateItem(dynamoDbClient, updateItemInput) {
     const updateItemOutput = await dynamoDbClient.updateItem(updateItemInput).promise();
     return updateItemOutput;
   } catch (err) {
-    //handleUpdateItemError(err);
+    handleUpdateItemError(err);
   }
 }
 
@@ -147,10 +158,36 @@ async function executeQuery(dynamoDbClient, queryInput) {
     // handleQueryError(err);
   }
 }
+
+function handleUpdateItemError(err) {
+  updateErrors.push(err);
+}
 ```
 
-## Limitations
+## Default Options
 
-1. Partition Keys and Sort Keys only support string type
-1. Multi-table get transactions are untested
-1. Multi-table put transactions are untested
+### Assumptions
+
+Safe assumptions for lambda -> dynamodb round trip times to avoid excessive throttling
+
+- Items are small, <= 2KB
+- On-Demand billing
+- default On-Demand max capacity of 12,000 RRUs and 4,000 WRUs.
+- Batch Writes consume 50 WRUs and complete in 7ms
+- Transact writes consume 100 WCSs and complete in 20ms
+- Single item write operations consume 2 WRUs and complete in 5ms
+- Queries and scans consume 125 RRUs and complete in 10ms
+- Batch Get operations consume 50 RRUs and complete in 5ms
+
+### Writes
+
+- For all items, divide below by 1 + # of GSIs where the item will appear
+- Assume other application traffic is consuming no more than 100 WRUs
+- Batch writes should use a buffer size of 1, or 2 for small items. A buffer of 3 will result in throttles and retries. Reduce batch write size if desired buffer size is < 1.
+- Query and Scan reads which result in 1:1 writes should be batched into sizes of 25, or 50 for small items. A (read) batch size of 75 will experience write throttling.
+
+### Read
+
+- Assume other application traffic is consuming no more than 500 RRUs
+- Batch Gets should use a read buffer of 1 or reduce the batch size
+- Queries and scans are usually not a bottleneck and read buffers can be set to high values except in memory constrained environments

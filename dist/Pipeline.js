@@ -5,11 +5,16 @@ const dynamodb_1 = require("aws-sdk/clients/dynamodb");
 const BatchFetcher_1 = require("./BatchFetcher");
 const TableIterator_1 = require("./TableIterator");
 const QueryFetcher_1 = require("./QueryFetcher");
+const BatchWriter_1 = require("./BatchWriter");
 class Pipeline {
     constructor(tableName, tableKeys, config) {
         this.config = {
             table: tableName,
             indexes: {},
+            readBuffer: 1,
+            writeBuffer: 30,
+            readBatchSize: 100,
+            writeBatchSize: 25,
             // shortcut to use KD, otherwise type definitions throughout the
             // class are too long
             tableKeys: tableKeys,
@@ -28,15 +33,32 @@ class Pipeline {
         this.config.indexes[name] = { ...keyDefinition };
         return this;
     }
-    withReadBuffer(readBuffer = 4) {
+    withReadBuffer(readBuffer = 1) {
+        if (readBuffer < 0) {
+            throw new Error("Read buffer out of range");
+        }
         this.config.readBuffer = readBuffer;
         return this;
     }
-    withWriteBuffer(writeBuffer = 20) {
-        if (writeBuffer > 25 || writeBuffer < 1) {
+    withWriteBuffer(writeBuffer = 30) {
+        if (writeBuffer < 0) {
             throw new Error("Write buffer out of range");
         }
         this.config.writeBuffer = writeBuffer;
+        return this;
+    }
+    withReadBatchSize(readBatchSize = 25) {
+        if (readBatchSize < 1) {
+            throw new Error("Read batch size out of range");
+        }
+        this.config.readBatchSize = readBatchSize;
+        return this;
+    }
+    withWriteBatchSize(writeBatchSize = 25) {
+        if (writeBatchSize < 1 || writeBatchSize > 25) {
+            throw new Error("Write batch size out of range");
+        }
+        this.config.writeBatchSize = writeBatchSize;
         return this;
     }
     queryIndex(indexName, KeyConditions, options) {
@@ -44,25 +66,26 @@ class Pipeline {
     }
     query(keyConditions, options) {
         const request = this.buildQueryScanRequest({ ...options, keyConditions });
-        const iteratorOptions = {
-            readBuffer: this.config.readBuffer,
+        const fetchOptions = {
+            bufferCapacity: this.config.readBuffer,
+            batchSize: this.config.readBatchSize,
             ...options,
         };
-        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "query", iteratorOptions));
+        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "query", fetchOptions));
     }
     scanIndex(indexName, options) {
         return this.scan({ ...options, indexName });
     }
     scan(options) {
         const request = this.buildQueryScanRequest(options !== null && options !== void 0 ? options : {});
-        const iteratorOptions = {
+        const fetchOptions = {
             bufferCapacity: this.config.readBuffer,
+            batchSize: this.config.readBatchSize,
             ...options,
         };
-        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "scan", iteratorOptions));
+        return new TableIterator_1.TableIterator(this, new QueryFetcher_1.QueryFetcher(request, this.config.client, "scan", fetchOptions));
     }
-    transactGet(keys) {
-        var _a;
+    transactGet(keys, options) {
         // get keys into a standard format, filter out any non-key attributes
         const transactGetItems = typeof keys[0] !== "undefined" && !("tableName" in keys[0]) && !("keys" in keys[0])
             ? keys.map((k) => ({
@@ -74,58 +97,48 @@ class Pipeline {
                 keys: this.keyAttributesOnly(key.keys, key.keyDefinition),
             }));
         return new TableIterator_1.TableIterator(this, new BatchFetcher_1.BatchGetFetcher(this.config.client, "transactGet", transactGetItems, {
-            bufferCapacity: (_a = this.config.readBuffer) !== null && _a !== void 0 ? _a : 4,
+            bufferCapacity: this.config.readBuffer,
+            ...options,
         }));
     }
-    getItems(keys, batchSize = 100) {
+    getItems(keys, options) {
         const handleUnprocessed = (keys) => {
             this.unprocessedItems.push(...keys);
         };
-        if (batchSize > 100 || batchSize < 1) {
+        if (typeof (options === null || options === void 0 ? void 0 : options.batchSize) === "number" && (options.batchSize > 100 || options.batchSize < 1)) {
             throw new Error("Batch size out of range");
+        }
+        if (typeof (options === null || options === void 0 ? void 0 : options.bufferCapacity) === "number" && options.bufferCapacity < 0) {
+            throw new Error("Buffer capacity is out of range");
         }
         // filter out any non-key attributes
         const tableKeys = this.keyAttributesOnlyFromArray(keys, this.config.tableKeys);
         const batchGetItems = { tableName: this.config.table, keys: tableKeys };
         return new TableIterator_1.TableIterator(this, new BatchFetcher_1.BatchGetFetcher(this.config.client, "batchGet", batchGetItems, {
-            batchSize,
+            batchSize: this.config.readBatchSize,
             bufferCapacity: this.config.readBuffer,
             onUnprocessedKeys: handleUnprocessed,
+            ...options,
         }));
     }
-    putItems(items) {
-        const chunks = [];
-        let i = 0;
-        const n = items.length;
-        while (i < n) {
-            chunks.push(items.slice(i, (i += this.config.writeBuffer || 25)));
+    async putItems(items, options) {
+        const handleUnprocessed = (keys) => {
+            this.unprocessedItems.push(...keys);
+        };
+        if (typeof (options === null || options === void 0 ? void 0 : options.bufferCapacity) === "number" && options.bufferCapacity < 0) {
+            throw new Error("Buffer capacity is out of range");
         }
-        // TODO: Abstract into helper, will be needed for transact write
-        return Promise.all(chunks.map((chunk) => this.config.client
-            // TODO: use document client to get retry logic
-            .batchWrite({
-            RequestItems: {
-                [this.config.table]: chunk.map((item) => ({
-                    PutRequest: {
-                        Item: item,
-                    },
-                })),
-            },
-        })
-            .promise()
-            .catch((e) => {
-            console.error("Error: AWS Error, Put Items", e);
-            this.unprocessedItems.push(...chunk);
-        })
-            .then((results) => {
-            var _a;
-            if (results && results.UnprocessedItems && (((_a = results.UnprocessedItems[this.config.table]) === null || _a === void 0 ? void 0 : _a.length) || 0) > 0) {
-                this.unprocessedItems.push(
-                // eslint-disable-next-line
-                ...results.UnprocessedItems[this.config.table].map((ui) => { var _a; return (_a = ui.PutRequest) === null || _a === void 0 ? void 0 : _a.Item; }));
-            }
-            return results;
-        })));
+        if (typeof (options === null || options === void 0 ? void 0 : options.batchSize) === "number" && options.batchSize < 1) {
+            throw new Error("Batch size is out of range");
+        }
+        const writer = new BatchWriter_1.BatchWriter(this.config.client, { tableName: this.config.table, records: items }, {
+            batchSize: this.config.writeBatchSize,
+            bufferCapacity: this.config.writeBuffer,
+            onUnprocessedItems: handleUnprocessed,
+            ...options,
+        });
+        await writer.execute();
+        return this;
     }
     put(item, condition) {
         const request = {
@@ -483,66 +496,3 @@ function conditionToAttributeNames(condition, countStart = 0) {
 function splitAndSetPropertyName(propertyName, names, countStart) {
     return propertyName.split(".").forEach((prop) => (names["#p" + (Object.keys(names).length + countStart)] = prop));
 }
-/*
-function propToType(item: any): PropertyTypeName {
-  if (typeof item === "string") {
-    return "S";
-  } else if (!isNaN(item)) {
-    return "N";
-  } else if (Array.isArray(item)) {
-    return "L";
-  } else if (item === null) {
-    return "NULL";
-  } else if (item === true || item === false) {
-    return "BOOL";
-  } else if (typeof item === "object" && "length" in item) {
-    return "B";
-  } else if (typeof item === "object") {
-    return "M";
-  }
-
-  throw new Error("Type cannot be determined," + item);
-}
-*/
-/*
-function propToValue<T extends { [key: string]: any }>(item: T, name: string): AttributeValue {
-  const val = name.split(".").reduce((acc, curr) => acc[curr], item);
-  return {
-    [propToType(val)]: val,
-  };
-}
-
-function propToPrimitiveType(item: PrimitiveType): PrimitiveTypeName {
-  if (typeof item === "string") {
-    return "S";
-  } else if (item === null) {
-    return "NULL";
-  } else if (item === true || item === false) {
-    return "BOOL";
-  } else if (typeof item === "object" && "length" in item) {
-    return "B";
-  } else if (!isNaN(item)) {
-    return "N";
-  }
-
-  throw new Error("Type cannot be determined," + item);
-}
-*/
-// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flat
-/*
-function flatten(input: any[]) {
-  const stack = [...input];
-  const res = [];
-  while (stack.length) {
-    const next = stack.pop();
-    if (Array.isArray(next)) {
-      // push back array items, won't modify the original input
-      stack.push(...next);
-    } else {
-      res.push(next);
-    }
-  }
-  // reverse to restore input order
-  return res.reverse();
-}
-*/

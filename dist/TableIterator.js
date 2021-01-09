@@ -7,6 +7,7 @@ class TableIterator {
     }
     // when a promise is returned, all promises are resolved in the batch before processing the next batch
     async forEach(iterator) {
+        let index = 0;
         let iteratorPromises = [];
         const executor = this.config.fetcher.execute();
         // eslint-disable-next-line no-labels
@@ -14,7 +15,8 @@ class TableIterator {
             await Promise.all(iteratorPromises);
             iteratorPromises = [];
             for (const item of stride) {
-                const iteratorResponse = iterator(item, this.config.pipeline);
+                const iteratorResponse = iterator(item, index, this.config.pipeline);
+                index += 1;
                 // TODO: Improve false return as an early-exit mechanism. not clear to user
                 if (iteratorResponse === false) {
                     await Promise.all(iteratorPromises);

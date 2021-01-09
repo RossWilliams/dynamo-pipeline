@@ -47,7 +47,7 @@ class AbstractFetcher {
             if (!this.hasDataReady()) {
                 await this.fetchNext();
             }
-            const batch = this.getResultBatch(Math.min(this.batchSize, this.limit ? this.limit - count : 100000));
+            const batch = this.getResultBatch(Math.min(this.batchSize, this.limit ? this.limit - count : 1000000000000));
             count += batch.length;
             if (!this.isDone() && (!this.limit || count < this.limit)) {
                 // do not await here, background process the next set of data

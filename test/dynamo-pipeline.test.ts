@@ -57,7 +57,7 @@ describe("Dynamo Pipeline", () => {
     expect(pipeline.config.readBuffer).toEqual(10);
     expect(pipeline.config.writeBuffer).toEqual(20);
 
-    expect(() => pipeline.withWriteBuffer(30)).toThrow();
+    expect(() => pipeline.withWriteBuffer(-30)).toThrow();
   });
 
   describe("Put Item", () => {
@@ -1122,7 +1122,12 @@ describe("Dynamo Pipeline", () => {
 
     test("Get with batch size over 100 throws", () => {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
-      expect(() => pipeline.getItems([], 125)).toThrow();
+      expect(() => pipeline.getItems([], { batchSize: 125 })).toThrow();
+    });
+
+    test("Get with buffer capacity under 0 throws", () => {
+      const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
+      expect(() => pipeline.getItems([], { bufferCapacity: -1 })).toThrow();
     });
 
     test(
@@ -1166,7 +1171,9 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(4);
 
-          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).all();
+          const all = await pipeline
+            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
+            .all();
 
           expect(all.length).toEqual(100);
           expect(pipeline.unprocessedItems.length).toEqual(0);
@@ -1190,7 +1197,9 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(4);
 
-          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).all();
+          const all = await pipeline
+            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
+            .all();
 
           expect(all.length).toEqual(80);
           expect(pipeline.unprocessedItems.length).toEqual(20);
@@ -1214,7 +1223,9 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
 
-          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).all();
+          const all = await pipeline
+            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
+            .all();
 
           expect(all.length).toEqual(100);
           expect(pipeline.unprocessedItems.length).toEqual(0);
@@ -1243,7 +1254,9 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
 
-          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).all();
+          const all = await pipeline
+            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
+            .all();
 
           expect(all.length).toEqual(98);
           expect(pipeline.unprocessedItems.length).toEqual(2);
@@ -1277,14 +1290,16 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
           let index = 0;
-          await pipeline.getItems<{ other: string }>(items.slice(0, 100), 20).forEach(() => {
-            if (index === 39) {
-              expect(spy.calls.length).toEqual(4);
-            } else if (index === 40) {
-              expect(spy.calls.length).toEqual(5);
-            }
-            index += 1;
-          });
+          await pipeline
+            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
+            .forEach(() => {
+              if (index === 39) {
+                expect(spy.calls.length).toEqual(4);
+              } else if (index === 40) {
+                expect(spy.calls.length).toEqual(5);
+              }
+              index += 1;
+            });
 
           expect(spy.calls.length).toEqual(5);
         },
@@ -1304,7 +1319,9 @@ describe("Dynamo Pipeline", () => {
       alwaysMockBatchGet(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
-          const result = await pipeline.getItems<{ other: string }>(items.slice(0, 120), 20).all();
+          const result = await pipeline
+            .getItems<{ other: string }>(items.slice(0, 120), { batchSize: 20 })
+            .all();
           expect(spy.calls.length).toEqual(14);
           expect(result.length).toEqual(40);
           expect(pipeline.unprocessedItems.length).toEqual(80);

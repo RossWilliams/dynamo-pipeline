@@ -19,6 +19,7 @@ export declare class BatchGetFetcher<ReturnType, KD extends KeyDefinition> exten
         batchSize?: number;
         bufferCapacity?: number;
     });
+    private chunkBatchRequests;
     retry(): Promise<void> | null;
     fetchStrategy(): Promise<void> | null;
     processResult(data: DocumentClient.BatchGetItemOutput | DocumentClient.TransactGetItemsOutput | void): void;

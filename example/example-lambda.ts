@@ -15,6 +15,12 @@ interface CalendarItem {
   start: string; //ISO 8601
 }
 
+/**
+ * 1. Update the user profile with appropriate event metadata
+ * 2. Remove all existing events for the user for 7 days beyond the start date of the event
+ * 3. Add the new calendar item
+ * @param event The Calendar Event to add to the User
+ */
 export async function handler(event: AddUserCalendarEvent): Promise<{ error: string } | { item: CalendarItem }> {
   const examplePipeline = new Pipeline(TABLE_NAME, { pk: "pk", sk: "sk" })
     .withIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" })
@@ -59,7 +65,8 @@ export async function handler(event: AddUserCalendarEvent): Promise<{ error: str
   await examplePipeline
     // sk string is type checked
     .queryIndex<CalendarItem>("gsi1", { pk: event.userId, sk: `between ${startDate} and ${sevenDaysFromStart}` })
-    .forEach((event, pipeline) => pipeline.delete(event)); // delete method can take extra object properties and extract keys
+    // delete method returns a promise which the forEach will await on for us.
+    .forEach((event, _index, pipeline) => pipeline.delete(event)); // delete method can take extra object properties and extract keys
 
   // add in new calendar item
   const newItem: CalendarItem = {
@@ -70,6 +77,7 @@ export async function handler(event: AddUserCalendarEvent): Promise<{ error: str
     start: event.startDateTime,
   };
 
+  // helper extention to put which add a pk not exists condition check to the request
   await examplePipeline.putIfNotExists(newItem);
 
   return { item: newItem };
