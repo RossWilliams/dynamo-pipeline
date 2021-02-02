@@ -1,12 +1,13 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { KeyDefinition, ConditionExpression, UpdateReturnValues, PrimitiveType, Key, KeyConditions } from "./types";
 import { TableIterator } from "./TableIterator";
-export declare class Pipeline<PK extends string, SK extends string | undefined, KD extends {
+import { CompoundKey } from "./types";
+export declare class Pipeline<PK extends string, SK extends string | undefined = undefined, KD extends {
     pk: PK;
-    sk?: SK;
+    sk: SK;
 } = {
     pk: PK;
-    sk?: SK;
+    sk: SK;
 }> {
     config: {
         client: DocumentClient;
@@ -36,8 +37,8 @@ export declare class Pipeline<PK extends string, SK extends string | undefined, 
     });
     withKeys<KD2 extends KeyDefinition>(tableKeys: {
         pk: KD2["pk"];
-        sk?: KD2["sk"];
-    }): Pipeline<KD2["pk"], KD2["sk"]>;
+        sk: KD2 extends CompoundKey ? KD2["sk"] : undefined;
+    }): Pipeline<KD2["pk"], KD2 extends CompoundKey ? KD2["sk"] : undefined>;
     withIndex(name: string, keyDefinition: KeyDefinition): Pipeline<PK, SK, KD>;
     withReadBuffer(readBuffer?: number): Pipeline<PK, SK, KD>;
     withWriteBuffer(writeBuffer?: number): Pipeline<PK, SK, KD>;
@@ -85,8 +86,8 @@ export declare class Pipeline<PK extends string, SK extends string | undefined, 
         disableSlowStart?: boolean;
         batchSize?: number;
     }): Promise<Pipeline<PK, SK>>;
-    put(item: Record<string, any>, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>>;
-    putIfNotExists(item: Record<string, any>): Promise<Pipeline<PK, SK>>;
+    put<Item extends Key<KD>>(item: Item, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>>;
+    putIfNotExists<Item extends Key<KD>>(item: Item): Promise<Pipeline<PK, SK>>;
     update<T extends DocumentClient.AttributeMap>(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
         condition?: ConditionExpression;
         returnType?: UpdateReturnValues;

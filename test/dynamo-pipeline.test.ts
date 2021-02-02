@@ -1,4 +1,4 @@
-import { Pipeline } from "../src/";
+import { Pipeline } from "../src";
 import {
   mockPut,
   setMockOn,
@@ -13,7 +13,7 @@ import {
   alwaysMockBatchGet,
   mockQuery,
   alwaysMockQuery,
-} from "./helpers";
+} from "../src/testHelpers";
 import { ensureDatabaseExists } from "./dynamodb.setup";
 
 /*
@@ -86,7 +86,7 @@ describe("Dynamo Pipeline", () => {
               client,
             }
           );
-          await pipeline.putIfNotExists({ id: "put:1", sk: "1" });
+          await pipeline.putIfNotExists({ id: "put:1", sk: "1", other: ["item", null], nullish: true });
           expect(pipeline.unprocessedItems.length).toEqual(1);
           const unprocessedItems = [];
           pipeline.handleUnprocessed((i) => unprocessedItems.push(i));
@@ -181,7 +181,7 @@ describe("Dynamo Pipeline", () => {
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
-        await pipeline.putIfNotExists({ id: "put:4", sk: "4" });
+        await pipeline.putIfNotExists({ id: "put:4", sk: "4", other: ["item"], nullish: null });
         const input = spy.calls[0]![0]; // eslint-disable-line
         expect(Object.keys(input.ExpressionAttributeNames || {}).length).toEqual(1);
         expect(Object.values(input.ExpressionAttributeNames || {})).toStrictEqual(["id"]);

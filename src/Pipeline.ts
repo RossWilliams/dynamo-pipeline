@@ -15,16 +15,18 @@ import {
   SKQueryParts,
   DynamoConditionAttributeValue,
   Scalar,
+  SimpleKey,
 } from "./types";
 import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { QueryFetcher } from "./QueryFetcher";
 import { BatchWriter } from "./BatchWriter";
+import { CompoundKey } from "./types";
 
 export class Pipeline<
   PK extends string,
-  SK extends string | undefined,
-  KD extends { pk: PK; sk?: SK } = { pk: PK; sk?: SK }
+  SK extends string | undefined = undefined,
+  KD extends { pk: PK; sk: SK } = { pk: PK; sk: SK }
 > {
   config: {
     client: DocumentClient;
@@ -71,8 +73,11 @@ export class Pipeline<
     return this;
   }
 
-  withKeys<KD2 extends KeyDefinition>(tableKeys: { pk: KD2["pk"]; sk?: KD2["sk"] }): Pipeline<KD2["pk"], KD2["sk"]> {
-    return new Pipeline<KD2["pk"], KD2["sk"]>(this.config.table, tableKeys, {
+  withKeys<KD2 extends KeyDefinition>(tableKeys: {
+    pk: KD2["pk"];
+    sk: KD2 extends CompoundKey ? KD2["sk"] : undefined;
+  }): Pipeline<KD2["pk"], KD2 extends CompoundKey ? KD2["sk"] : undefined> {
+    return new Pipeline<KD2["pk"], KD2 extends CompoundKey ? KD2["sk"] : undefined>(this.config.table, tableKeys, {
       ...this.config,
     });
   }
@@ -274,7 +279,7 @@ export class Pipeline<
     return this;
   }
 
-  put(item: Record<string, any>, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>> {
+  put<Item extends Key<KD>>(item: Item, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>> {
     const request: DocumentClient.PutItemInput = {
       TableName: this.config.table,
       Item: item,
@@ -296,7 +301,7 @@ export class Pipeline<
       .then(() => this);
   }
 
-  putIfNotExists(item: Record<string, any>): Promise<Pipeline<PK, SK>> {
+  putIfNotExists<Item extends Key<KD>>(item: Item): Promise<Pipeline<PK, SK>> {
     const pkCondition: ConditionExpression = {
       operator: "attribute_not_exists",
       property: pkName(this.config.tableKeys),
@@ -464,7 +469,7 @@ export class Pipeline<
         ? {
             "#p0": index ? index.pk : this.config.tableKeys.pk,
             ...(options.keyConditions.sk && {
-              "#p1": index ? (index.sk as string) : (this.config.tableKeys.sk as string),
+              "#p1": index && "sk" in index ? (index.sk as string) : (this.config.tableKeys.sk as string),
             }),
           }
         : undefined,
@@ -494,8 +499,8 @@ export class Pipeline<
     return request;
   }
 
-  private keyAttributesOnlyFromArray(items: Record<string, any>[], keyDefinition: KeyDefinition) {
-    return items.map((item) => this.keyAttributesOnly(item, keyDefinition));
+  private keyAttributesOnlyFromArray<KD extends KeyDefinition>(items: Key<KD>[], keyDefinition: KD) {
+    return items.map((item) => this.keyAttributesOnly<KD>(item, keyDefinition));
   }
 
   private keyAttributesOnly<KD extends KeyDefinition>(item: Key<KD>, keyDefinition: KD): Key<KD> {

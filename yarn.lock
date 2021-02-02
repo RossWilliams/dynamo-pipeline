@@ -597,7 +597,7 @@
   dependencies:
     "@types/istanbul-lib-report" "*"
 
-"@types/jest@26.x", "@types/jest@^26.0.19":
+"@types/jest@26.x":
   version "26.0.19"
   resolved "https://registry.yarnpkg.com/@types/jest/-/jest-26.0.19.tgz#e6fa1e3def5842ec85045bd5210e9bb8289de790"
   integrity sha512-jqHoirTG61fee6v6rwbnEuKhpSKih0tuhqeFbCmMmErhtu3BYlOZaXWjffgOstMM4S/3iQD31lI5bGLTrs97yQ==
@@ -4488,10 +4488,10 @@ typedarray-to-buffer@^3.1.5:
   dependencies:
     is-typedarray "^1.0.0"
 
-typescript@next:
-  version "4.2.0-dev.20201226"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201226.tgz#cd4b2a9c05fdad5242fee4187034ca66e4a80c12"
-  integrity sha512-GRdm7E4VIDCgj13wwwHyPktcOaWSBESLEfMvZPHTQgspjc+1Muqk5mPkjxaaUU603X6IBfHpcmg3+edb8X09Sg==
+typescript@4.2.0-beta:
+  version "4.2.0-beta"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-beta.tgz#75326e43625718f4a325f5725a105a1b3f1a7b45"
+  integrity sha512-0nYjpkQ6bKjHoJTQkUHcDtGLNenqc5rfTcl3ISUnJXPkGa0115FcVJABmodfMKHLyDBmzDr8IGLbDv5m7sbYgw==
 
 union-value@^1.0.0:
   version "1.0.1"

@@ -1,8 +1,11 @@
 {
   "name": "dynamo-pipeline",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Alternative API for DynamoDB's DocumentClient",
-  "main": "dist/index.js",
+  "main": "lib/index.js",
+  "files": [
+    "lib"
+  ],
   "repository": "https://github.com/RossWilliams/dynamo-pipeline.git",
   "author": "RossWilliams",
   "license": "Apache-2.0",
@@ -19,8 +22,10 @@
   "dependencies": {
     "aws-sdk": "^2.814.0"
   },
+  "peerDependencies": {
+    "@types/jest": "~26.0.19"
+  },
   "devDependencies": {
-    "@types/jest": "^26.0.19",
     "@typescript-eslint/eslint-plugin": "^4.10.0",
     "@typescript-eslint/parser": "^4.10.0",
     "aws-sdk-mock": "^5.1.0",
@@ -36,7 +41,7 @@
     "jest": "^26.6.3",
     "prettier": "^2.2.1",
     "ts-jest": "^26.4.4",
-    "typescript": "next"
+    "typescript": "4.2.0-beta"
   },
   "husky": {
     "hooks": {

@@ -27,10 +27,16 @@ export type DynamoCondition = {
   ExpressionAttributeValues?: Record<DynamoConditionAttributeValue, Scalar>;
 };
 
-export type KeyDefinition = {
+export type SimpleKey = {
   pk: string;
-  sk?: string;
 };
+
+export type CompoundKey = {
+  pk: string;
+  sk: string;
+};
+
+export type KeyDefinition = SimpleKey | CompoundKey;
 
 export type IndexDefinition = KeyDefinition & {
   name: string;
@@ -38,7 +44,11 @@ export type IndexDefinition = KeyDefinition & {
 
 export type KeyType = string | number | Buffer | Uint8Array;
 export type KeyTypeName = "N" | "S" | "B";
-export type Key<KS extends KeyDefinition = { pk: "id" }> = Record<KS["pk"] | Exclude<KS["sk"], undefined>, Scalar>;
+
+export type Key<Keyset extends KeyDefinition> = Keyset extends CompoundKey
+  ? Record<Keyset["pk"] | Keyset["sk"], Scalar>
+  : Record<Keyset["pk"], Scalar>;
+
 export type PrimitiveType = string | number | null | boolean | Buffer | Uint8Array;
 
 export type PrimitiveTypeName = KeyTypeName | "NULL" | "BOOL";

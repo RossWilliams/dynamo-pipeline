@@ -18,18 +18,20 @@ export declare type DynamoCondition = {
     ExpressionAttributeNames?: Record<DynamoConditionAttributeName, string>;
     ExpressionAttributeValues?: Record<DynamoConditionAttributeValue, Scalar>;
 };
-export declare type KeyDefinition = {
+export declare type SimpleKey = {
     pk: string;
-    sk?: string;
 };
+export declare type CompoundKey = {
+    pk: string;
+    sk: string;
+};
+export declare type KeyDefinition = SimpleKey | CompoundKey;
 export declare type IndexDefinition = KeyDefinition & {
     name: string;
 };
 export declare type KeyType = string | number | Buffer | Uint8Array;
 export declare type KeyTypeName = "N" | "S" | "B";
-export declare type Key<KS extends KeyDefinition = {
-    pk: "id";
-}> = Record<KS["pk"] | Exclude<KS["sk"], undefined>, Scalar>;
+export declare type Key<Keyset extends KeyDefinition> = Keyset extends CompoundKey ? Record<Keyset["pk"] | Keyset["sk"], Scalar> : Record<Keyset["pk"], Scalar>;
 export declare type PrimitiveType = string | number | null | boolean | Buffer | Uint8Array;
 export declare type PrimitiveTypeName = KeyTypeName | "NULL" | "BOOL";
 export declare type PropertyTypeName = PrimitiveTypeName | "M" | "L";

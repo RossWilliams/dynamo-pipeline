@@ -1,7 +1,7 @@
 {   
     "compilerOptions": {
         "module": "commonjs",
-        "outDir": "./dist",
+        "outDir": "lib",
         "moduleResolution": "node",
         "declaration": true ,
         "incremental": true,
@@ -17,7 +17,12 @@
         "alwaysStrict": true,
         "strictNullChecks": true
     },
+    "exclude": [
+        "lib",
+        "node_modules",
+        "test"
+    ],
     "include": [
-        "src/index.ts"
+        "src"
     ]
 }
