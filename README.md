@@ -174,7 +174,7 @@ Safe assumptions for lambda -> dynamodb round trip times to avoid excessive thro
 - On-Demand billing
 - default On-Demand max capacity of 12,000 RRUs and 4,000 WRUs.
 - Batch Writes consume 50 WRUs and complete in 7ms
-- Transact writes consume 100 WCSs and complete in 20ms
+- Transact writes consume 100 WRUs and complete in 20ms
 - Single item write operations consume 2 WRUs and complete in 5ms
 - Queries and scans consume 125 RRUs and complete in 10ms
 - Batch Get operations consume 50 RRUs and complete in 5ms

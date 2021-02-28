@@ -11,7 +11,7 @@ declare type MockReturn<TOutput> = {
     data?: TOutput;
 }[];
 export declare function setMockOn(on: boolean): void;
-interface MockSet<TOutput = {}> {
+interface MockSet<TOutput = Record<string, unknown>> {
     name: "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
     returns?: MockReturn<TOutput>;
     delay?: number;

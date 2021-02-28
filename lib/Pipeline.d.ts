@@ -1,28 +1,15 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
-import { KeyDefinition, ConditionExpression, UpdateReturnValues, PrimitiveType, Key, KeyConditions } from "./types";
+import { ConditionExpression, UpdateReturnValues, PrimitiveType, Key } from "./types";
 import { TableIterator } from "./TableIterator";
-import { CompoundKey } from "./types";
+import { ScanQueryPipeline } from "./ScanQueryPipeline";
 export declare class Pipeline<PK extends string, SK extends string | undefined = undefined, KD extends {
     pk: PK;
     sk: SK;
 } = {
     pk: PK;
     sk: SK;
-}> {
-    config: {
-        client: DocumentClient;
-        table: string;
-        tableKeys: KD;
-        readBuffer?: number;
-        writeBuffer?: number;
-        readBatchSize?: number;
-        writeBatchSize?: number;
-        indexes: {
-            [key: string]: KeyDefinition | undefined;
-        };
-    };
-    unprocessedItems: Key<KD>[];
-    constructor(tableName: string, tableKeys: {
+}> extends ScanQueryPipeline<PK, SK, KD> {
+    constructor(tableName: string, keys: {
         pk: PK;
         sk?: SK;
     }, config?: {
@@ -31,45 +18,13 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
         writeBuffer?: number;
         readBatchSize?: number;
         writeBatchSize?: number;
-        indexes?: {
-            [key: string]: KeyDefinition | undefined;
-        };
     });
-    withKeys<KD2 extends KeyDefinition>(tableKeys: {
-        pk: KD2["pk"];
-        sk: KD2 extends CompoundKey ? KD2["sk"] : undefined;
-    }): Pipeline<KD2["pk"], KD2 extends CompoundKey ? KD2["sk"] : undefined>;
-    withIndex(name: string, keyDefinition: KeyDefinition): Pipeline<PK, SK, KD>;
-    withReadBuffer(readBuffer?: number): Pipeline<PK, SK, KD>;
-    withWriteBuffer(writeBuffer?: number): Pipeline<PK, SK, KD>;
-    withReadBatchSize(readBatchSize?: number): Pipeline<PK, SK, KD>;
-    withWriteBatchSize(writeBatchSize?: number): Pipeline<PK, SK, KD>;
-    queryIndex<ReturnType = DocumentClient.AttributeMap>(indexName: string, KeyConditions: KeyConditions, options?: {
-        batchSize?: number;
-        bufferCapacity?: number;
-        limit?: number;
-        filters?: ConditionExpression;
-    }): TableIterator<this, ReturnType>;
-    query<ReturnType = DocumentClient.AttributeMap>(keyConditions: KeyConditions, options?: {
-        indexName?: string;
-        batchSize?: number;
-        bufferCapacity?: number;
-        limit?: number;
-        filters?: ConditionExpression;
-    }): TableIterator<this, ReturnType>;
-    scanIndex<ReturnType = DocumentClient.AttributeMap>(indexName: string, options?: {
-        batchSize?: number;
-        bufferCapacity?: number;
-        limit?: number;
-        filters?: ConditionExpression;
-    }): TableIterator<this, ReturnType>;
-    scan<ReturnType = DocumentClient.AttributeMap>(options?: {
-        batchSize?: number;
-        bufferCapacity?: number;
-        limit?: number;
-        indexName?: string;
-        filters?: ConditionExpression;
-    }): TableIterator<this, ReturnType>;
+    withWriteBuffer(writeBuffer?: number): this;
+    withWriteBatchSize(writeBatchSize?: number): this;
+    createIndex<PK2 extends string, SK2 extends string>(name: string, definition: {
+        pk: PK2;
+        sk?: SK2;
+    }): ScanQueryPipeline<PK2, SK2>;
     transactGet<T = DocumentClient.AttributeMap, KD2 extends KD = KD>(keys: Key<KD>[] | {
         tableName: string;
         keys: Key<KD2>;
@@ -98,7 +53,6 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
         reportError?: boolean;
     }): Promise<T | null>;
     handleUnprocessed(callback: (item: Record<string, any>) => void): Pipeline<PK, SK, KD>;
-    private buildQueryScanRequest;
     private keyAttributesOnlyFromArray;
     private keyAttributesOnly;
 }

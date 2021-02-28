@@ -16,8 +16,8 @@ export declare class BatchGetFetcher<ReturnType, KD extends KeyDefinition> exten
     private onUnprocessedKeys;
     constructor(client: DocumentClient, operation: "batchGet" | "transactGet", items: BatchGetItems<KD> | TransactGetItems<KD>, options: {
         onUnprocessedKeys?: (keys: Key<KD>[]) => void;
-        batchSize?: number;
-        bufferCapacity?: number;
+        batchSize: number;
+        bufferCapacity: number;
     });
     private chunkBatchRequests;
     retry(): Promise<void> | null;

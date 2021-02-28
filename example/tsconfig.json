@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "outDir": "lib",
+    "outDir": "dist",
     "moduleResolution": "node",
     "declaration": true,
     "incremental": true,
@@ -17,6 +17,6 @@
     "alwaysStrict": true,
     "strictNullChecks": true
   },
-  "exclude": ["lib", "node_modules", "test"],
-  "include": ["src"]
+  "exclude": ["dist"],
+  "include": ["./example-lambda.ts"]
 }

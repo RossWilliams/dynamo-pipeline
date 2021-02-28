@@ -13,10 +13,9 @@ export type SKQueryParts =
   | [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar]
   | ["between", Scalar, "and", Scalar];
 
-export type KeyConditions = {
-  pk: Scalar;
-  sk?: SKQuery;
-};
+export type QueryTemplate =
+  | [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar]
+  | ["between", "and", Scalar, Scalar];
 
 export type DynamoConditionAttributeName = `#p${number}`;
 export type DynamoConditionAttributeValue = `:v${number}`;
@@ -38,15 +37,21 @@ export type CompoundKey = {
 
 export type KeyDefinition = SimpleKey | CompoundKey;
 
-export type IndexDefinition = KeyDefinition & {
-  name: string;
-};
+export type IndexDefinition =
+  | (SimpleKey & {
+      name: string;
+    })
+  | (CompoundKey & { name: string });
 
 export type KeyType = string | number | Buffer | Uint8Array;
 export type KeyTypeName = "N" | "S" | "B";
 
 export type Key<Keyset extends KeyDefinition> = Keyset extends CompoundKey
   ? Record<Keyset["pk"] | Keyset["sk"], Scalar>
+  : Record<Keyset["pk"], Scalar>;
+
+export type KeyConditions<Keyset extends KeyDefinition> = Keyset extends CompoundKey
+  ? Record<Keyset["pk"], Scalar> & Partial<Record<Keyset["sk"], QueryTemplate>>
   : Record<Keyset["pk"], Scalar>;
 
 export type PrimitiveType = string | number | null | boolean | Buffer | Uint8Array;

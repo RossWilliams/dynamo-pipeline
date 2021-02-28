@@ -10,8 +10,8 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
     client: DocumentClient,
     operation: "query" | "scan",
     options: {
-      batchSize?: number;
-      bufferCapacity?: number;
+      batchSize: number;
+      bufferCapacity: number;
       limit?: number;
     }
   ) {
@@ -55,8 +55,8 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
   getResultBatch(batchSize: number): T[] {
     const items = super.getResultBatch(batchSize);
 
-    if (items.length) {
-      this.bufferSize = (this.results || []).length / (items.length || 1);
+    if (items.length > 0) {
+      this.bufferSize = this.results.length / items.length;
     } else if (!this.activeRequests.length) {
       // if we don't have any items to process, and no active requests, buffer size should be zero.
       this.bufferSize = 0;

@@ -17,8 +17,8 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     items: BatchGetItems<KD> | TransactGetItems<KD>,
     options: {
       onUnprocessedKeys?: (keys: Key<KD>[]) => void;
-      batchSize?: number;
-      bufferCapacity?: number;
+      batchSize: number;
+      bufferCapacity: number;
     }
   ) {
     super(client, options);

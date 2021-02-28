@@ -4,8 +4,8 @@ export declare class QueryFetcher<T> extends AbstractFetcher<T> {
     private request;
     private operation;
     constructor(request: ScanInput | QueryInput, client: DocumentClient, operation: "query" | "scan", options: {
-        batchSize?: number;
-        bufferCapacity?: number;
+        batchSize: number;
+        bufferCapacity: number;
         limit?: number;
     });
     fetchStrategy(): null | Promise<any>;

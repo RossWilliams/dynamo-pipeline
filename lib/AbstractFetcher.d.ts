@@ -11,8 +11,8 @@ export declare abstract class AbstractFetcher<T> {
     protected results: T[];
     protected errors: Error | null;
     constructor(client: DocumentClient, options: {
-        batchSize?: number;
-        bufferCapacity?: number;
+        batchSize: number;
+        bufferCapacity: number;
         limit?: number;
     });
     abstract fetchStrategy(): Promise<void> | null;

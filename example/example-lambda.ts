@@ -1,18 +1,18 @@
-import { Pipeline } from "../src/index";
-
+// import { Pipeline, sortKey } from "dynamo-pipeline";
+import { Pipeline, sortKey } from "../src";
 const TABLE_NAME = process.env.TABLE_NAME || "example-2c19f773";
 interface AddUserCalendarEvent {
   userId: string;
-  startDateTime: string; //ISO 8601
+  startDateTime: string; // ISO 8601
   expectedVersion: number; // counting number
 }
 
 interface CalendarItem {
-  pk: string;
-  sk: string;
+  id: string;
+  sort: string;
   gsi1pk: string;
   gsi1sk: string;
-  start: string; //ISO 8601
+  start: string; // ISO 8601
 }
 
 /**
@@ -22,9 +22,8 @@ interface CalendarItem {
  * @param event The Calendar Event to add to the User
  */
 export async function handler(event: AddUserCalendarEvent): Promise<{ error: string } | { item: CalendarItem }> {
-  const examplePipeline = new Pipeline(TABLE_NAME, { pk: "pk", sk: "sk" })
-    .withIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" })
-    .withReadBuffer(20);
+  const table = new Pipeline(TABLE_NAME, { pk: "id", sk: "sort" }).withReadBuffer(20);
+  const index = table.createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" });
 
   const startDate: string = event.startDateTime.split("T")[0] || "";
   const sevenDaysFromStart: string | null = tryGetSevenDaysFromStart(startDate);
@@ -35,14 +34,14 @@ export async function handler(event: AddUserCalendarEvent): Promise<{ error: str
   }
 
   // update user profile
-  const updatedUserVersion = await examplePipeline
+  const updatedUserVersion = await table
     .update<{ currentVersion: number }>(
-      { pk: event.userId, sk: event.userId }, // keys for the items to update
+      { id: event.userId, sort: event.userId }, // keys for the items to update
       { lastEventAdded: event.startDateTime, currentVersion: event.expectedVersion + 1 }, // attributes to update
       {
         // options object
         condition: {
-          //type-safe and nestable conditions
+          // type-safe and nestable conditions
           lhs: "currentVersion",
           operator: "=",
           rhs: { value: event.expectedVersion },
@@ -62,23 +61,26 @@ export async function handler(event: AddUserCalendarEvent): Promise<{ error: str
   }
 
   // delete all other calenar items
-  await examplePipeline
+  await index
     // sk string is type checked
-    .queryIndex<CalendarItem>("gsi1", { pk: event.userId, sk: `between ${startDate} and ${sevenDaysFromStart}` })
+    .query<CalendarItem>({
+      gsi1pk: event.userId,
+      gsi1sk: sortKey("between", startDate, sevenDaysFromStart),
+    })
     // delete method returns a promise which the forEach will await on for us.
-    .forEach((event, _index, pipeline) => pipeline.delete(event)); // delete method can take extra object properties and extract keys
+    .forEach((event, _index) => table.delete(event)); // delete method can take extra object properties and extract keys
 
   // add in new calendar item
   const newItem: CalendarItem = {
-    pk: "1",
-    sk: "1",
+    id: "1",
+    sort: "1",
     gsi1pk: event.userId,
     gsi1sk: event.startDateTime,
     start: event.startDateTime,
   };
 
   // helper extention to put which add a pk not exists condition check to the request
-  await examplePipeline.putIfNotExists(newItem);
+  await table.putIfNotExists(newItem);
 
   return { item: newItem };
 }

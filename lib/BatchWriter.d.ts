@@ -18,8 +18,8 @@ export declare class BatchWriter<KD extends KeyDefinition> {
     private onUnprocessedItems;
     constructor(client: DocumentClient, items: BatchWriteItems<KD>, options: {
         onUnprocessedItems?: (keys: Key<KD>[]) => void;
-        batchSize?: number;
-        bufferCapacity?: number;
+        batchSize: number;
+        bufferCapacity: number;
     });
     execute(): Promise<void>;
     private chunkBatchWrites;

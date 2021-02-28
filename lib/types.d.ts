@@ -7,10 +7,7 @@ export declare type ConditionOperator = ComparisonOperator | "contains" | "attri
 export declare type ConditionFunction = "attribute_exists" | "attribute_not_exists";
 export declare type SKQuery = `${Exclude<ComparisonOperator, "<>">} ${Scalar}` | `begins_with ${Scalar}` | `between ${Scalar} and ${Scalar}`;
 export declare type SKQueryParts = [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar] | ["between", Scalar, "and", Scalar];
-export declare type KeyConditions = {
-    pk: Scalar;
-    sk?: SKQuery;
-};
+export declare type QueryTemplate = [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar] | ["between", "and", Scalar, Scalar];
 export declare type DynamoConditionAttributeName = `#p${number}`;
 export declare type DynamoConditionAttributeValue = `:v${number}`;
 export declare type DynamoCondition = {
@@ -26,12 +23,15 @@ export declare type CompoundKey = {
     sk: string;
 };
 export declare type KeyDefinition = SimpleKey | CompoundKey;
-export declare type IndexDefinition = KeyDefinition & {
+export declare type IndexDefinition = (SimpleKey & {
     name: string;
-};
+}) | (CompoundKey & {
+    name: string;
+});
 export declare type KeyType = string | number | Buffer | Uint8Array;
 export declare type KeyTypeName = "N" | "S" | "B";
 export declare type Key<Keyset extends KeyDefinition> = Keyset extends CompoundKey ? Record<Keyset["pk"] | Keyset["sk"], Scalar> : Record<Keyset["pk"], Scalar>;
+export declare type KeyConditions<Keyset extends KeyDefinition> = Keyset extends CompoundKey ? Record<Keyset["pk"], Scalar> & Partial<Record<Keyset["sk"], QueryTemplate>> : Record<Keyset["pk"], Scalar>;
 export declare type PrimitiveType = string | number | null | boolean | Buffer | Uint8Array;
 export declare type PrimitiveTypeName = KeyTypeName | "NULL" | "BOOL";
 export declare type PropertyTypeName = PrimitiveTypeName | "M" | "L";

@@ -1,60 +1,59 @@
 {
-    "extends": ["plugin:@typescript-eslint/recommended", "standard", "prettier"],
-    "parser": "@typescript-eslint/parser",
-    "plugins": ["@typescript-eslint", "prettier"],
-    "parserOptions": {
-      "ecmaVersion": 9,
-      "sourceType": "module"
-    },
-    "env": {
-      "node": true,
-      "jest": true
-    },
-    "globals": {
-      "__DEV__": false,
-      "beforeAll": false,
-      "afterAll": false,
-      "beforeEach": false,
-      "afterEach": false,
-      "test": false,
-      "expect": false,
-      "describe": false,
-      "jest": false,
-      "it": false
-    },
-    "ignorePatterns": ["**/node_modules/**/*", "node_modules/**/*"],
-    "rules": {
-      "complexity": ["warn", 30],
-      "default-case": 2,
-      "dot-notation": 2,
-      "eqeqeq": 2,
-      "guard-for-in": 2,
-      "no-constant-condition": 2,
-      "no-dupe-keys": 2,
-      "no-eval": 2,
-      "no-unreachable": 2,
-      "no-unused-vars": 0,
-      "prefer-destructuring": [
-        "warn",
-        {
-          "object": true,
-          "array": true
-        }
-      ],
-      "camelcase": 0,
-      "@typescript-eslint/camelcase": 0,
-      "@typescript-eslint/explicit-member-accessibility": 0,
-      "@typescript-eslint/explicit-function-return-type": 0,
-      "@typescript-eslint/indent": 0,
-      "@typescript-eslint/no-explicit-any": 0,
-      "@typescript-eslint/no-empty-interface": 0,
-      "@typescript-eslint/no-object-literal-type-assertion": 0,
-      "@typescript-eslint/no-use-before-define": 0,
-      "@typescript-eslint/no-var-requires": 0,
-      "prettier/prettier": "error",
-      "standard/no-callback-literal": 0,
-      "node/no-callback-literal": 0,
-      "@typescript-eslint/no-unused-vars": 0
-    }
+  "extends": ["plugin:@typescript-eslint/recommended", "standard", "prettier"],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "prettier"],
+  "parserOptions": {
+    "ecmaVersion": 10,
+    "sourceType": "module"
+  },
+  "env": {
+    "node": true,
+    "jest": true
+  },
+  "globals": {
+    "__DEV__": false,
+    "beforeAll": false,
+    "afterAll": false,
+    "beforeEach": false,
+    "afterEach": false,
+    "test": false,
+    "expect": false,
+    "describe": false,
+    "jest": false,
+    "it": false
+  },
+  "ignorePatterns": ["**/node_modules/**/*", "node_modules/**/*"],
+  "rules": {
+    "complexity": ["warn", 30],
+    "default-case": 2,
+    "dot-notation": 2,
+    "eqeqeq": 2,
+    "guard-for-in": 2,
+    "no-constant-condition": 2,
+    "no-dupe-keys": 2,
+    "no-eval": 2,
+    "no-unreachable": 2,
+    "no-unused-vars": 0,
+    "prefer-destructuring": [
+      "warn",
+      {
+        "object": true,
+        "array": true
+      }
+    ],
+    "camelcase": 0,
+    "@typescript-eslint/camelcase": 0,
+    "@typescript-eslint/explicit-member-accessibility": 0,
+    "@typescript-eslint/explicit-function-return-type": 0,
+    "@typescript-eslint/indent": 0,
+    "@typescript-eslint/no-explicit-any": 0,
+    "@typescript-eslint/no-empty-interface": 0,
+    "@typescript-eslint/no-object-literal-type-assertion": 0,
+    "@typescript-eslint/no-use-before-define": 0,
+    "@typescript-eslint/no-var-requires": 0,
+    "prettier/prettier": "error",
+    "standard/no-callback-literal": 0,
+    "node/no-callback-literal": 0,
+    "@typescript-eslint/no-unused-vars": 0
   }
-  
+}

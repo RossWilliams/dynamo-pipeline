@@ -1,4 +1,4 @@
-import { Pipeline } from "../src";
+import { Pipeline, sortKey } from "../src";
 import {
   mockPut,
   setMockOn,
@@ -19,12 +19,12 @@ import { ensureDatabaseExists } from "./dynamodb.setup";
 /*
 When running against DynamoDB:
 1. Ensure AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION or AWS_DEFAULT_REGION set.
-   1.1. Alternativelym ensure an ~/.aws/credentials file is set.
+   1.1. Alternatively, ensure an ~/.aws/credentials file is set.
 2. If assuming a role, ensure ~/.aws/config file is set, and AWS_PROFILE is set, and AWS_SDK_LOAD_CONFIG=1 is set.
 3. Tests are kept to under 4,000 WCUs, can be run on newly created on-demand table.
 */
 const TEST_WITH_DYNAMO = process.env.TEST_WITH_DYNAMO === "true" || process.env.TEST_WITH_DYNAMO === "1";
-const TEST_TABLE = process.env.TEST_WITH_DYNAMO_TABLE || "dynamo-pipeline-e0558699b598";
+const TEST_TABLE = process.env.TEST_WITH_DYNAMO_TABLE || "dynamo-pipeline-e0558699b593";
 
 describe("Dynamo Pipeline", () => {
   beforeAll(async () => {
@@ -51,13 +51,27 @@ describe("Dynamo Pipeline", () => {
   });
 
   test("updates pipeline config", () => {
-    const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
-    pipeline.withIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" }).withReadBuffer(10).withWriteBuffer(20);
-    expect(pipeline.config.indexes).toStrictEqual({ gsi1: { pk: "gsi1pk", sk: "gsi1sk" } });
-    expect(pipeline.config.readBuffer).toEqual(10);
-    expect(pipeline.config.writeBuffer).toEqual(20);
+    const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" })
+      .withWriteBatchSize(22)
+      .withWriteBuffer(13)
+      .withReadBatchSize(99)
+      .withReadBuffer(33);
 
+    expect(pipeline.config.writeBatchSize).toEqual(22);
+    expect(pipeline.config.writeBuffer).toEqual(13);
+    expect(pipeline.config.readBatchSize).toEqual(99);
+    expect(pipeline.config.readBuffer).toEqual(33);
+
+    expect(() => pipeline.withWriteBatchSize(26)).toThrow();
     expect(() => pipeline.withWriteBuffer(-30)).toThrow();
+    expect(() => pipeline.withReadBatchSize(0)).toThrow();
+
+    const index = pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" }).withReadBuffer(10).withReadBatchSize(34);
+
+    expect(index.config.readBuffer).toEqual(10);
+    expect(index.config.readBatchSize).toEqual(34);
+    expect(() => index.withReadBuffer(-1)).toThrow();
+    expect(() => index.withReadBatchSize(0)).toThrow();
   });
 
   describe("Put Item", () => {
@@ -371,9 +385,10 @@ describe("Dynamo Pipeline", () => {
               .join(""),
           }));
 
+          // set to 60 to trigger backoff
           await pipeline.putItems(items, { bufferCapacity: 60 });
           if (TEST_WITH_DYNAMO) {
-            const inserted = await pipeline.query({ pk: "putMany:6000" }).all();
+            const inserted = await pipeline.query({ id: "putMany:6000" }, { consistentRead: true }).all();
             expect(inserted.length).toEqual(6000);
           }
 
@@ -384,6 +399,13 @@ describe("Dynamo Pipeline", () => {
       ),
       30000
     );
+
+    test("putItems with invalid buffers throws", async () => {
+      const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
+      await expect(pipeline.putItems([{ id: "1", sk: "1" }], { bufferCapacity: -1 })).rejects.toThrow();
+      await expect(pipeline.putItems([{ id: "1", sk: "1" }], { batchSize: 0 })).rejects.toThrow();
+      await expect(pipeline.putItems([{ id: "1", sk: "1" }], { batchSize: 26 })).rejects.toThrow();
+    });
 
     test(
       "putItems with invalid item returns the invalid chunk.",
@@ -708,13 +730,10 @@ describe("Dynamo Pipeline", () => {
       "Scan Index will get all items projected onto the index",
       mockScan(
         async (client, _spy) => {
-          const pipeline = new Pipeline(
-            TEST_TABLE,
-            { pk: "id", sk: "sk" },
-            { client, indexes: { gsi1: { pk: "gsi1pk", sk: "gsi1sk" } } }
-          );
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          const index = pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" });
 
-          const results = await pipeline.scanIndex("gsi1").all();
+          const results = await index.scan().all();
           expect(results.length).toEqual(2);
         },
         [{ data: { Items: items.slice(1, 3) } }]
@@ -1113,14 +1132,14 @@ describe("Dynamo Pipeline", () => {
 
     beforeAll(
       mockBatchWrite(async (client, _spy) => {
-        const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withKeys({ pk: "id", sk: "sk" });
+        const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
         await pipeline.putItems(items);
         expect(pipeline.unprocessedItems.length).toEqual(0);
       })
     );
 
-    test("Get with batch size over 100 throws", () => {
+    test("Get with batch size over 100 throws", async () => {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
       expect(() => pipeline.getItems([], { batchSize: 125 })).toThrow();
     });
@@ -1438,15 +1457,28 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
+      "Query can return no results without throwing",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          const result = await pipeline.query({ id: "query:xxx" }).all();
+          expect(result.length).toEqual(0);
+        },
+        [{ data: { Items: [] } }]
+      )
+    );
+
+    test(
       "Query will fetch multiple times to get all items",
       mockQuery(
         async (client, _spy) => {
-          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" } as const, { client });
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
           type Data = { id: string; sk: string; other: string };
           const query = pipeline.query<Data>(
-            { pk: "query:1" },
+            { id: "query:1" },
             {
               batchSize: 100,
+              consistentRead: true,
             }
           );
 
@@ -1465,22 +1497,47 @@ describe("Dynamo Pipeline", () => {
           type Data = { id: string; sk: string; other: string };
 
           const query = pipeline.query<Data>(
-            { pk: "query:1" },
+            { id: "query:1" },
             {
               batchSize: 50,
+              consistentRead: true,
               filters: {
                 lhs: { lhs: "evenIsOne", operator: "=", rhs: { value: 1 } },
                 logical: "AND",
-                rhs: { lhs: "plusOne", operator: ">", rhs: { value: "0" } },
+                rhs: {
+                  lhs: {
+                    lhs: "plusOne",
+                    operator: ">",
+                    rhs: {
+                      value: "4",
+                    },
+                  },
+                  logical: "OR",
+                  rhs: {
+                    lhs: "gsi1sk",
+                    operator: "<",
+                    rhs: {
+                      property: "plusOne",
+                    },
+                  },
+                },
               },
             }
           );
 
           const result = await query.all();
-          expect(result.length).toEqual(50);
+          expect(result.length).toEqual(33);
         },
         [
-          { data: { Items: items.slice(0, 50).filter((_v, i) => i % 2 === 0), LastEvaluatedKey: { N: 1 } } },
+          {
+            data: {
+              Items: items
+                .slice(0, 50)
+                .filter((_v, i) => i % 2 === 0)
+                .filter((v) => v.plusOne > "4" || v.gsi1sk < v.plusOne),
+              LastEvaluatedKey: { N: 1 },
+            },
+          },
           { data: { Items: items.slice(50, 100).filter((_v, i) => i % 2 === 0) } },
         ]
       )
@@ -1492,10 +1549,11 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
           const query = pipeline.query(
-            { pk: "query:1" },
+            { id: "query:1" },
             {
               batchSize: 50,
               limit: 80,
+              consistentRead: true,
             }
           );
 
@@ -1512,7 +1570,7 @@ describe("Dynamo Pipeline", () => {
       mockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const query = pipeline.query({ pk: "query:1" });
+          const query = pipeline.query({ id: "query:1" });
 
           const result: any[] = await query.all();
           expect(result.length).toEqual(100);
@@ -1529,7 +1587,7 @@ describe("Dynamo Pipeline", () => {
       mockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const query = pipeline.query({ pk: "query:1", sk: "< 2" });
+          const query = pipeline.query({ id: "query:1", sk: sortKey("between", "1", "2") });
 
           const result: any[] = await query.all();
           expect(result.length).toEqual(12);
@@ -1544,7 +1602,7 @@ describe("Dynamo Pipeline", () => {
       mockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const query = pipeline.query({ pk: "query:1", sk: "between 2 and 4" });
+          const query = pipeline.query({ id: "query:1", sk: sortKey("between", "2", "4") });
 
           const result: any[] = await query.all();
           expect(result.length).toEqual(23);
@@ -1559,8 +1617,8 @@ describe("Dynamo Pipeline", () => {
       alwaysMockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          expect(pipeline.query({ pk: "query:1" }).all()).rejects.toBeDefined();
-          expect(pipeline.query({ pk: "query:1" }, { limit: 100 }).all()).rejects.toBeDefined();
+          expect(pipeline.query({ id: "query:1" }).all()).rejects.toBeDefined();
+          expect(pipeline.query({ id: "query:1" }, { limit: 100 }).all()).rejects.toBeDefined();
         },
         [
           { err: new Error("An AWS Error") },
@@ -1575,38 +1633,19 @@ describe("Dynamo Pipeline", () => {
       mockQuery(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          pipeline.withIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" });
-          let results = await pipeline
-            .queryIndex<{ gsi1sk: string }>("gsi1", { pk: "queryIndex:1", sk: "= 100" })
-            .all();
+          const index = pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" });
+          let results = await index.query({ gsi1pk: "queryIndex:1", gsi1sk: sortKey("=", "100") }).all();
 
           // if the GSI isn't yet up to date, wait and run again
           if (results.length === 0) {
             const item = await pipeline.getItems([{ id: "query:1", sk: "99" }]).all();
 
             await new Promise((resolve) => setTimeout(resolve, 5000));
-            results = await pipeline
-              .queryIndex<{ gsi1sk: string }>("gsi1", { pk: "queryIndex:1", sk: "= 100" })
-              .all();
+            results = await index.query({ gsi1pk: "queryIndex:1", gsi1sk: sortKey("=", "100") }).all();
           }
 
           expect(results.length).toEqual(1);
           expect(results[0]?.gsi1sk).toEqual("100");
-        },
-        [{ data: { Items: items.slice(-1) } }]
-      )
-    );
-
-    test(
-      "Query Index throws if index not configured",
-      mockQuery(
-        async (client, _spy) => {
-          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          expect(() =>
-            pipeline
-              .queryIndex<{ gsi1sk: string }>("gsi1", { pk: "queryIndex:1", sk: "= 100" })
-              .all()
-          ).toThrow();
         },
         [{ data: { Items: items.slice(-1) } }]
       )

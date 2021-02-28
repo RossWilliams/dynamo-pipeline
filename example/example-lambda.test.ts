@@ -1,4 +1,5 @@
-import { mockUpdate, multiMock } from "../test/helpers";
+// import { mockUpdate, multiMock } from "dynamo-pipeline/testHelpers";
+import { mockUpdate, multiMock } from "../src/testHelpers";
 import { handler } from "./example-lambda";
 
 const testEvent = {
@@ -42,13 +43,14 @@ describe("Example Lambda", () => {
     multiMock(
       async (_client, spies) => {
         const result = await handler(testEvent);
+        // eslint-disable-next-line
         const querySpy = spies[1]!;
 
         expect("error" in result).toBeFalsy();
         expect(querySpy.calls.length).toEqual(1);
-        const request = querySpy.calls[0]![0];
+        const request = querySpy.calls[0]?.[0];
         expect(request.IndexName).toEqual("gsi1");
-        expect(request.KeyConditionExpression!.includes("between")).toBeTruthy();
+        expect(request.KeyConditionExpression?.includes("between")).toBeTruthy();
       },
       [
         { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
@@ -69,12 +71,12 @@ describe("Example Lambda", () => {
         const deleteKeys = deleteSpy.calls.map((call) => call[0].Key);
 
         expect(deleteSpy.calls.length).toEqual(3);
-        expect(deleteKeys[0]!.pk).toEqual("1");
-        expect(deleteKeys[0]!.sk).toEqual("1");
-        expect(deleteKeys[1]!.pk).toEqual("2");
-        expect(deleteKeys[1]!.sk).toEqual("2");
-        expect(deleteKeys[2]!.pk).toEqual("3");
-        expect(deleteKeys[2]!.sk).toEqual("3");
+        expect(deleteKeys[0]?.pk).toEqual("1");
+        expect(deleteKeys[0]?.sk).toEqual("1");
+        expect(deleteKeys[1]?.pk).toEqual("2");
+        expect(deleteKeys[1]?.sk).toEqual("2");
+        expect(deleteKeys[2]?.pk).toEqual("3");
+        expect(deleteKeys[2]?.sk).toEqual("3");
       },
       [
         {
@@ -103,7 +105,7 @@ describe("Example Lambda", () => {
         const putSpy = spies[0]!; // eslint-disable-line
 
         await handler(testEvent);
-        const request = putSpy.calls[0]![0];
+        const request = putSpy.calls[0]![0]; // eslint-disable-line
 
         expect(putSpy.calls.length).toEqual(1);
         expect(request.Item.start).toEqual(testEvent.startDateTime);

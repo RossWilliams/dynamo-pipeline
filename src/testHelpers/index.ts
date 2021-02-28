@@ -13,7 +13,7 @@ export function setMockOn(on: boolean): void {
   mockOn = on;
 }
 
-interface MockSet<TOutput = {}> {
+interface MockSet<TOutput = Record<string, unknown>> {
   name: "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
   returns?: MockReturn<TOutput>;
   delay?: number;

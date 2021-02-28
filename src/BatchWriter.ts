@@ -11,9 +11,9 @@ export class BatchWriter<KD extends KeyDefinition> {
   private nextToken: number | null;
   private retryKeys: Key<KD>[][] | null = [];
   private errors: Error | null = null;
-  private batchSize: number = 25;
-  private bufferCapacity: number = 100;
-  private backoffActive: boolean = false;
+  private batchSize = 25;
+  private bufferCapacity = 3;
+  private backoffActive = false;
   private onUnprocessedItems: ((keys: Key<KD>[]) => void) | undefined;
 
   constructor(
@@ -21,14 +21,14 @@ export class BatchWriter<KD extends KeyDefinition> {
     items: BatchWriteItems<KD>,
     options: {
       onUnprocessedItems?: (keys: Key<KD>[]) => void;
-      batchSize?: number;
-      bufferCapacity?: number;
+      batchSize: number;
+      bufferCapacity: number;
     }
   ) {
     this.client = client;
     this.tableName = (items as BatchWriteItems<KD>).tableName;
-    this.batchSize = options.batchSize || 25;
-    this.bufferCapacity = options.bufferCapacity || this.bufferCapacity;
+    this.batchSize = options.batchSize;
+    this.bufferCapacity = options.bufferCapacity;
     this.onUnprocessedItems = options.onUnprocessedItems;
     this.chunks = this.chunkBatchWrites(items as BatchWriteItems<KD>);
     this.nextToken = 0;

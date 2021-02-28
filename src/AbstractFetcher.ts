@@ -15,14 +15,14 @@ export abstract class AbstractFetcher<T> {
   constructor(
     client: DocumentClient,
     options: {
-      batchSize?: number;
-      bufferCapacity?: number;
+      batchSize: number;
+      bufferCapacity: number;
       limit?: number;
     }
   ) {
     this.documentClient = client;
-    this.bufferCapacity = options.bufferCapacity ?? 4;
-    this.batchSize = options.batchSize ?? 100;
+    this.bufferCapacity = options.bufferCapacity;
+    this.batchSize = options.batchSize;
     this.limit = options.limit;
   }
 

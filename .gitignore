@@ -54,3 +54,6 @@ node_modules/
 
 # VSCode Settings
 .vscode/
+
+example/dist/
+example/node_modules/

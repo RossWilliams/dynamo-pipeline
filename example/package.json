@@ -7,7 +7,15 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "test": "NODE_ENV=test jest"
+    "test": "NODE_ENV=test jest",
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@types/jest": "^26.0.20",
+    "dynamo-pipeline": "git://github.com/RossWilliams/dynamo-pipeline.git"
+  },
+  "devDependencies": {
+    "typescript": "^4.2.2"
   },
   "jest": {
     "testRegex": "/(example)/.*\\.test\\.[jt]s?$",
