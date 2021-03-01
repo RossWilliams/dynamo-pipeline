@@ -8,8 +8,11 @@ export declare class TableIterator<P, T = DynamoDB.AttributeMap> {
         fetcher: IteratorExecutor<T>;
     };
     constructor(pipeline: P, fetcher: IteratorExecutor<T>);
-    forEach(iterator: (item: T, index: number, pipeline: P) => Promise<any> | false | void): Promise<P>;
+    forEachStride(iterator: (items: T[], index: number, pipeline: P, cancel: () => void) => Promise<any> | void): Promise<P>;
+    forEach(iterator: (item: T, index: number, pipeline: P, cancel: () => void) => Promise<any> | void): Promise<P>;
     map<U>(iterator: (item: T, index: number) => U): Promise<U[]>;
+    mapLazy<U>(iterator: (item: T, index: number) => U): TableIterator<P, U>;
     all(): Promise<T[]>;
+    iterator(): AsyncGenerator<T, void, void>;
 }
 export {};

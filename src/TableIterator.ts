@@ -13,21 +13,48 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
     this.config = { pipeline, fetcher };
   }
 
+  async forEachStride(
+    iterator: (items: T[], index: number, pipeline: P, cancel: () => void) => Promise<any> | void
+  ): Promise<P> {
+    let index = 0;
+    const executor = this.config.fetcher.execute();
+    let cancelled = false;
+    const cancel = () => {
+      cancelled = true;
+    };
+
+    for await (const stride of executor) {
+      await iterator(stride, index, this.config.pipeline, cancel);
+      index += 1;
+
+      if (cancelled) {
+        break;
+      }
+    }
+
+    return this.config.pipeline;
+  }
+
   // when a promise is returned, all promises are resolved in the batch before processing the next batch
-  async forEach(iterator: (item: T, index: number, pipeline: P) => Promise<any> | false | void): Promise<P> {
+  async forEach(
+    iterator: (item: T, index: number, pipeline: P, cancel: () => void) => Promise<any> | void
+  ): Promise<P> {
     let index = 0;
     let iteratorPromises = [];
     const executor = this.config.fetcher.execute();
+    let cancelled = false;
+    const cancel = () => {
+      cancelled = true;
+    };
+
     // eslint-disable-next-line no-labels
     strides: for await (const stride of executor) {
-      await Promise.all(iteratorPromises);
       iteratorPromises = [];
       for (const item of stride) {
-        const iteratorResponse = iterator(item, index, this.config.pipeline);
+        const iteratorResponse = iterator(item, index, this.config.pipeline, cancel);
         index += 1;
 
-        // TODO: Improve false return as an early-exit mechanism. not clear to user
-        if (iteratorResponse === false) {
+        if (cancelled) {
           await Promise.all(iteratorPromises);
 
           // eslint-disable-next-line no-labels
@@ -36,6 +63,8 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
           iteratorPromises.push(iteratorResponse);
         }
       }
+
+      await Promise.all(iteratorPromises);
     }
 
     await Promise.all(iteratorPromises);
@@ -59,8 +88,39 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
     return results;
   }
 
+  mapLazy<U>(iterator: (item: T, index: number) => U): TableIterator<P, U> {
+    const existingFetcher = this.config.fetcher;
+    let results: U[] = [];
+    let index = 0;
+
+    const fetcher = async function* () {
+      const executor = existingFetcher.execute();
+      for await (const stride of executor) {
+        results = stride.map((item) => {
+          const result = iterator(item, index);
+          index += 1;
+          return result;
+        });
+
+        yield results;
+      }
+    };
+
+    return new TableIterator(this.config.pipeline, { execute: fetcher });
+  }
+
   all(): Promise<T[]> {
     const result = this.map((i) => i);
     return result;
+  }
+
+  async *iterator(): AsyncGenerator<T, void, void> {
+    const executor = this.config.fetcher.execute();
+
+    for await (const stride of executor) {
+      for (const item of stride) {
+        yield item;
+      }
+    }
   }
 }

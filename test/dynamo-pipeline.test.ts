@@ -45,12 +45,12 @@ describe("Dynamo Pipeline", () => {
     }
   });
 
-  test("creates a pipeline", () => {
+  test("Creates a pipeline", () => {
     const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
     expect(pipeline).toBeDefined();
   });
 
-  test("updates pipeline config", () => {
+  test("Updates pipeline config", () => {
     const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" })
       .withWriteBatchSize(22)
       .withWriteBuffer(13)
@@ -76,7 +76,7 @@ describe("Dynamo Pipeline", () => {
 
   describe("Put Item", () => {
     test(
-      "put item returns the same pipeline",
+      "Put item returns the same pipeline",
       mockPut(async (client, _spy) => {
         const pipeline = new Pipeline(
           TEST_TABLE,
@@ -90,7 +90,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "failure to put adds item to unprocessed array",
+      "Failure to put adds item to unprocessed array",
       mockPut(
         async (client, _spy) => {
           const pipeline = new Pipeline(
@@ -111,7 +111,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put sends a formatted put to the document client",
+      "Put sends a formatted put to the document client",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(
           TEST_TABLE,
@@ -131,7 +131,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "puts with attribute not exists condition",
+      "Puts with attribute not exists condition",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(
           TEST_TABLE,
@@ -150,7 +150,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "puts with intersect of conditions",
+      "Puts with intersect of conditions",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(
           TEST_TABLE,
@@ -191,7 +191,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "putIfNotExists adds  pk condition",
+      "PutIfNotExists adds  pk condition",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
@@ -204,7 +204,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check if just an sk exists",
+      "Put with conditions can check if just an sk exists",
       mockPut(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -224,7 +224,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check value operators as valid",
+      "Put with conditions can check value operators as valid",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
@@ -239,7 +239,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check value operators as invalid",
+      "Put with conditions can check value operators as invalid",
       mockPut(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -253,7 +253,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check BETWEEN operator as valid",
+      "Put with conditions can check BETWEEN operator as valid",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
@@ -287,7 +287,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check BETWEEN operator as invalid",
+      "Put with conditions can check BETWEEN operator as invalid",
       mockPut(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -308,7 +308,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check IN operator as valid",
+      "Put with conditions can check IN operator as valid",
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
@@ -349,7 +349,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "put with conditions can check IN as invalid",
+      "Put with conditions can check IN as invalid",
       mockPut(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -370,7 +370,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "putItems with more than 25 items batches into multiple writes",
+      "PutItems with more than 25 items batches into multiple writes",
       mockBatchWrite(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -400,7 +400,7 @@ describe("Dynamo Pipeline", () => {
       30000
     );
 
-    test("putItems with invalid buffers throws", async () => {
+    test("PutItems with invalid buffers throws", async () => {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
       await expect(pipeline.putItems([{ id: "1", sk: "1" }], { bufferCapacity: -1 })).rejects.toThrow();
       await expect(pipeline.putItems([{ id: "1", sk: "1" }], { batchSize: 0 })).rejects.toThrow();
@@ -408,7 +408,7 @@ describe("Dynamo Pipeline", () => {
     });
 
     test(
-      "putItems with invalid item returns the invalid chunk.",
+      "PutItems with invalid item returns the invalid chunk.",
       alwaysMockBatchWrite(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -437,7 +437,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "putItems with processing error returns unprocessed item.",
+      "PutItems with processing error returns unprocessed item.",
       alwaysMockBatchWrite(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
@@ -1060,10 +1060,11 @@ describe("Dynamo Pipeline", () => {
               value: "scan:",
             },
           });
-          await scanner.forEach((item) => {
+          await scanner.forEach((item, _index, _pipeline, cancel) => {
             result.push(item);
             if (result.length === 8) {
-              return false;
+              cancel();
+              return;
             }
             // find the buffered items, subtract out processed items, should be less than the max buffer.
             return new Promise<void>((resolve) => setImmediate(() => resolve(), 5));
@@ -1648,6 +1649,135 @@ describe("Dynamo Pipeline", () => {
           expect(results[0]?.gsi1sk).toEqual("100");
         },
         [{ data: { Items: items.slice(-1) } }]
+      )
+    );
+  });
+
+  describe("Iterator", () => {
+    const items = new Array(300).fill(0).map((_, i) => ({
+      id: "iterator:1",
+      sk: i.toString(),
+      plusOne: i + 1,
+      evenIsOne: i % 2 === 0 ? 1 : 0,
+      other: new Array(120)
+        .fill(0)
+        .map(() => Math.random().toString(36).substring(2, 15))
+        .join(""),
+    }));
+
+    beforeAll(
+      mockBatchWrite(async (client, _spy) => {
+        const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+        await pipeline.putItems(items);
+        expect(pipeline.unprocessedItems.length).toEqual(0);
+      })
+    );
+
+    test(
+      "Map Lazy gets all items when iterated",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+
+          const results = await pipeline
+            .query<{ plusOne: string }>({ id: "iterator:1" })
+            .mapLazy((item) => item.plusOne)
+            .all();
+
+          expect(results.length).toEqual(300);
+        },
+        [
+          { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
+          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
+          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
+          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          { data: { Items: items.slice(250, 300) } },
+        ]
+      )
+    );
+
+    test(
+      "Map Lazy waits until other method is called to execute iterator",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client })
+            .withReadBatchSize(50)
+            .withReadBuffer(1);
+
+          let lazyCounter = 0;
+
+          await pipeline
+            .query<{ plusOne: string }>({ id: "iterator:1" })
+            .mapLazy((item, index) => {
+              lazyCounter = index;
+              return item.plusOne;
+            })
+            .forEach(async (_item, index) => {
+              await new Promise((resolve, reject) => setTimeout(resolve, 1));
+              expect(lazyCounter - index).toBeLessThanOrEqual(50);
+            });
+        },
+        [
+          { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
+          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
+          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
+          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          { data: { Items: items.slice(250, 300) } },
+        ]
+      )
+    );
+
+    test(
+      "Items returns an async generator for each item",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+
+          const iterator = pipeline.query<{ plusOne: number }>({ id: "iterator:1" }, { limit: 145 }).iterator();
+
+          let index = 0;
+
+          for await (const item of iterator) {
+            index += 1;
+            expect("plusOne" in item).toBeTruthy();
+          }
+
+          expect(index).toEqual(145);
+        },
+        [
+          { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
+          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
+          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
+          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          { data: { Items: items.slice(250, 300) } },
+        ]
+      )
+    );
+
+    test(
+      "ForEachStride loops through items in groups of batchSize",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBatchSize(50);
+
+          pipeline
+            .query<{ plusOne: string }>({ id: "iterator:1" })
+            .forEachStride((stride, strideIndex, _pipeline, cancel) => {
+              expect(strideIndex).toBeLessThanOrEqual(4);
+              expect(stride.length).toBeLessThanOrEqual(50);
+              if (strideIndex === 4) {
+                cancel();
+              }
+            });
+        },
+        [
+          { data: { Items: items.slice(0, 100), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(100, 200), LastEvaluatedKey: { N: 2 } } },
+          { data: { Items: items.slice(200, 300) } },
+        ]
       )
     );
   });
