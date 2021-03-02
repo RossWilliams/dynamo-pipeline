@@ -26,11 +26,11 @@ export class BatchWriter<KD extends KeyDefinition> {
     }
   ) {
     this.client = client;
-    this.tableName = (items as BatchWriteItems<KD>).tableName;
+    this.tableName = items.tableName;
     this.batchSize = options.batchSize;
     this.bufferCapacity = options.bufferCapacity;
     this.onUnprocessedItems = options.onUnprocessedItems;
-    this.chunks = this.chunkBatchWrites(items as BatchWriteItems<KD>);
+    this.chunks = this.chunkBatchWrites(items);
     this.nextToken = 0;
   }
 
@@ -60,7 +60,7 @@ export class BatchWriter<KD extends KeyDefinition> {
     return chunks;
   }
 
-  private async writeChunk(): Promise<any> {
+  private async writeChunk(): Promise<void | null> {
     if (this.retryKeys && this.retryKeys.length && this.nextToken === null && !this.isActive()) {
       // if finished fetching initial requests, begin to process the retry keys
       return this.retry();
@@ -70,7 +70,7 @@ export class BatchWriter<KD extends KeyDefinition> {
     } else if (!this.hasNextChunk()) {
       this.nextToken = null;
       // let the caller wait until all active requests are finished
-      return Promise.all(this.activeRequests);
+      return Promise.all(this.activeRequests).then();
     }
 
     const chunk = this.getNextChunk();
@@ -103,7 +103,7 @@ export class BatchWriter<KD extends KeyDefinition> {
           if (this.onUnprocessedItems) {
             this.onUnprocessedItems(chunk);
           }
-          this.errors = e;
+          this.errors = e as Error;
         })
         .then((results) => {
           this.processResult(results, promise);

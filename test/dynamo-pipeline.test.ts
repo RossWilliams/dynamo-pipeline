@@ -414,7 +414,7 @@ describe("Dynamo Pipeline", () => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
           const items: any[] = new Array(53).fill(0).map((_, i) => ({
-            id: "putMany:" + i,
+            id: "putMany:" + i.toString(),
             sk: i.toString(),
             other: new Array(6)
               .fill(0)
@@ -429,7 +429,7 @@ describe("Dynamo Pipeline", () => {
             await result;
           } catch {}
 
-          expect(result).rejects.toBeDefined();
+          await expect(result).rejects.toBeDefined();
           expect(pipeline.unprocessedItems.length).toEqual(5);
         },
         [{ data: {} }, { data: {} }, { err: Error("err") }]
@@ -703,7 +703,7 @@ describe("Dynamo Pipeline", () => {
 
   describe("Scan", () => {
     const items = new Array(100).fill(0).map((_, i) => ({
-      id: "scan:" + i,
+      id: "scan:" + i.toString(),
 
       sk: i.toString(),
       ...((i === 1 || i === 2) && {
@@ -1104,7 +1104,7 @@ describe("Dynamo Pipeline", () => {
             },
           });
 
-          const seenIndexes: boolean[] = Array(100).fill(false);
+          const seenIndexes: boolean[] = Array<boolean>(100).fill(false);
 
           await scanner.forEach((_item, index) => {
             seenIndexes[index] = true;
@@ -1122,8 +1122,8 @@ describe("Dynamo Pipeline", () => {
   });
 
   describe("Get Items", () => {
-    const items = new Array(150).fill(0).map((_, i) => ({
-      id: "getItems:" + i,
+    const items = new Array<number>(150).fill(0).map((_, i) => ({
+      id: "getItems:" + i.toString(),
       sk: i.toString(),
       other: new Array(6)
         .fill(0)
@@ -1140,7 +1140,7 @@ describe("Dynamo Pipeline", () => {
       })
     );
 
-    test("Get with batch size over 100 throws", async () => {
+    test("Get with batch size over 100 throws", () => {
       const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
       expect(() => pipeline.getItems([], { batchSize: 125 })).toThrow();
     });
@@ -1369,9 +1369,9 @@ describe("Dynamo Pipeline", () => {
 
   describe("Transact Get", () => {
     const items = new Array(5).fill(0).map((_, i) => ({
-      id: "transactGet:" + i,
+      id: "transactGet:" + i.toString(),
       sk: i.toString(),
-      other: new Array(6)
+      other: new Array<number>(6)
         .fill(0)
         .map(() => Math.random().toString(36).substring(2, 15))
         .join(""),
@@ -1618,8 +1618,8 @@ describe("Dynamo Pipeline", () => {
       alwaysMockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          expect(pipeline.query({ id: "query:1" }).all()).rejects.toBeDefined();
-          expect(pipeline.query({ id: "query:1" }, { limit: 100 }).all()).rejects.toBeDefined();
+          await expect(pipeline.query({ id: "query:1" }).all()).rejects.toBeDefined();
+          await expect(pipeline.query({ id: "query:1" }, { limit: 100 }).all()).rejects.toBeDefined();
         },
         [
           { err: new Error("An AWS Error") },
@@ -1763,7 +1763,7 @@ describe("Dynamo Pipeline", () => {
         async (client) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBatchSize(50);
 
-          pipeline
+          await pipeline
             .query<{ plusOne: string }>({ id: "iterator:1" })
             .forEachStride((stride, strideIndex, _pipeline, cancel) => {
               expect(strideIndex).toBeLessThanOrEqual(4);

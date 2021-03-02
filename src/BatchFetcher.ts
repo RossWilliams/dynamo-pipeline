@@ -62,7 +62,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       return this.retry();
     } else if (
       this.bufferSize >= this.bufferCapacity ||
-      this.chunks.length <= this.nextToken ||
+      (typeof this.nextToken === "number" && this.chunks.length <= this.nextToken) ||
       this.nextToken === null
     ) {
       // return the current promise if buffer at capacity, or if there are no more items to fetch
@@ -91,7 +91,12 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       promise = this.documentClient.batchGet(batchGetRequest).promise();
     }
 
-    this.nextToken = typeof this.chunks[this.nextToken + 1] !== "undefined" ? this.nextToken + 1 : null;
+    if (typeof this.nextToken === "number" && typeof this.chunks[this.nextToken + 1] !== "undefined") {
+      this.nextToken = this.nextToken + 1;
+    } else {
+      this.nextToken = null;
+    }
+
     return promise;
   }
 
@@ -141,9 +146,10 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
   }
 
   private createTransactionRequest(): DocumentClient.TransactGetItemsInput | null {
-    const currentChunk: TransactGetItems<KD> | undefined = this.chunks[this.nextToken] as
-      | TransactGetItems<KD>
-      | undefined;
+    const currentChunk: TransactGetItems<KD> | undefined =
+      typeof this.nextToken === "number"
+        ? (this.chunks[this.nextToken] as TransactGetItems<KD> | undefined)
+        : undefined;
 
     if (!currentChunk) {
       return null;
@@ -163,7 +169,8 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
 
   // each batch handles a single table for now...
   private createBatchGetRequest(): DocumentClient.BatchGetItemInput | null {
-    const currentChunk: BatchGetItems<KD> | undefined = this.chunks[this.nextToken] as BatchGetItems<KD> | undefined;
+    const currentChunk: BatchGetItems<KD> | undefined =
+      typeof this.nextToken === "number" ? (this.chunks[this.nextToken] as BatchGetItems<KD> | undefined) : undefined;
 
     if (!currentChunk) {
       return null;
@@ -181,7 +188,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
   }
 
   private hasNextChunk(): boolean {
-    if (this.nextToken === null || this.nextToken >= this.chunks.length) {
+    if (typeof this.nextToken !== "number" || this.nextToken >= this.chunks.length) {
       return false;
     }
 

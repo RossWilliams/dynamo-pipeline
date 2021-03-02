@@ -1,4 +1,4 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
 
 export abstract class AbstractFetcher<T> {
   protected activeRequests: Promise<any>[] = [];
@@ -7,7 +7,7 @@ export abstract class AbstractFetcher<T> {
   protected batchSize: number;
   protected limit?: number;
   protected totalReturned = 0;
-  protected nextToken: any | null;
+  protected nextToken: number | Key | null;
   protected documentClient: DocumentClient;
   protected results: T[] = [];
   protected errors: Error | null = null;
@@ -24,6 +24,7 @@ export abstract class AbstractFetcher<T> {
     this.bufferCapacity = options.bufferCapacity;
     this.batchSize = options.batchSize;
     this.limit = options.limit;
+    this.nextToken = null;
   }
 
   /*
@@ -77,12 +78,17 @@ export abstract class AbstractFetcher<T> {
         await this.fetchNext();
       }
 
+      // check for errors again after running another fetch
+      if (this.errors) {
+        return Promise.reject(this.errors);
+      }
+
       const batch = this.getResultBatch(Math.min(this.batchSize, this.limit ? this.limit - count : 1000000000000));
       count += batch.length;
 
       if (!this.isDone() && (!this.limit || count < this.limit)) {
         // do not await here, background process the next set of data
-        this.fetchNext();
+        void this.fetchNext();
       }
 
       yield batch;

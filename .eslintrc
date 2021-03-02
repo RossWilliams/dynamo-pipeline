@@ -1,8 +1,15 @@
 {
-  "extends": ["plugin:@typescript-eslint/recommended", "standard", "prettier"],
+  "extends": [
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "standard",
+    "prettier"
+  ],
   "parser": "@typescript-eslint/parser",
   "plugins": ["@typescript-eslint", "prettier"],
   "parserOptions": {
+    "project": "./tsconfig.eslint.json",
     "ecmaVersion": 10,
     "sourceType": "module"
   },
@@ -22,7 +29,7 @@
     "jest": false,
     "it": false
   },
-  "ignorePatterns": ["**/node_modules/**/*", "node_modules/**/*"],
+  "ignorePatterns": ["**/node_modules/**/*", "node_modules/**/*", "lib/**/*"],
   "rules": {
     "complexity": ["warn", 30],
     "default-case": 2,
@@ -34,6 +41,7 @@
     "no-eval": 2,
     "no-unreachable": 2,
     "no-unused-vars": 0,
+    "no-void": ["error", { "allowAsStatement": true }],
     "prefer-destructuring": [
       "warn",
       {
@@ -51,6 +59,7 @@
     "@typescript-eslint/no-object-literal-type-assertion": 0,
     "@typescript-eslint/no-use-before-define": 0,
     "@typescript-eslint/no-var-requires": 0,
+    "@typescript-eslint/no-floating-promises": 2,
     "prettier/prettier": "error",
     "standard/no-callback-literal": 0,
     "node/no-callback-literal": 0,

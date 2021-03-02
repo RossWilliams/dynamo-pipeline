@@ -1,4 +1,4 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
 export declare abstract class AbstractFetcher<T> {
     protected activeRequests: Promise<any>[];
     protected bufferSize: number;
@@ -6,7 +6,7 @@ export declare abstract class AbstractFetcher<T> {
     protected batchSize: number;
     protected limit?: number;
     protected totalReturned: number;
-    protected nextToken: any | null;
+    protected nextToken: number | Key | null;
     protected documentClient: DocumentClient;
     protected results: T[];
     protected errors: Error | null;

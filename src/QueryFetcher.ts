@@ -18,7 +18,7 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
     super(client, options);
     this.request = request;
     this.operation = operation;
-    this.nextToken = true;
+    this.nextToken = 1;
   }
 
   // TODO: remove null response type
@@ -34,7 +34,7 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
     const request = {
       ...(this.request.Limit && { Limit: this.request.Limit - this.totalReturned }),
       ...this.request,
-      ...(this.nextToken && this.nextToken !== true && { ExclusiveStartKey: this.nextToken }),
+      ...(Boolean(this.nextToken) && typeof this.nextToken === "object" && { ExclusiveStartKey: this.nextToken }),
     };
 
     const promise = this.documentClient[this.operation](request).promise();

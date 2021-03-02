@@ -106,7 +106,7 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
       }
     };
 
-    return new TableIterator(this.config.pipeline, { execute: fetcher });
+    return new TableIterator<P, U>(this.config.pipeline, { execute: fetcher });
   }
 
   all(): Promise<T[]> {
