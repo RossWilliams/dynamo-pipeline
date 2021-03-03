@@ -13,7 +13,7 @@ import {
   alwaysMockBatchGet,
   mockQuery,
   alwaysMockQuery,
-} from "../src/testHelpers";
+} from "../src/mocks";
 import { ensureDatabaseExists } from "./dynamodb.setup";
 
 /*
@@ -1515,10 +1515,21 @@ describe("Dynamo Pipeline", () => {
                   },
                   logical: "OR",
                   rhs: {
-                    lhs: "gsi1sk",
-                    operator: "<",
+                    lhs: {
+                      lhs: {
+                        function: "size" as const,
+                        property: "other",
+                      },
+                      operator: ">",
+                      rhs: { value: 42 },
+                    },
+                    logical: "AND",
                     rhs: {
-                      property: "plusOne",
+                      lhs: "gsi1sk",
+                      operator: "<",
+                      rhs: {
+                        property: "plusOne",
+                      },
                     },
                   },
                 },
@@ -1555,6 +1566,18 @@ describe("Dynamo Pipeline", () => {
               batchSize: 50,
               limit: 80,
               consistentRead: true,
+              filters: {
+                lhs: {
+                  operator: "attribute_exists",
+                  property: "other",
+                },
+                logical: "AND",
+                rhs: {
+                  property: "evenIsOne",
+                  operator: "in",
+                  list: [0, 1, 2],
+                },
+              },
             }
           );
 
@@ -1777,6 +1800,33 @@ describe("Dynamo Pipeline", () => {
           { data: { Items: items.slice(0, 100), LastEvaluatedKey: { N: 1 } } },
           { data: { Items: items.slice(100, 200), LastEvaluatedKey: { N: 2 } } },
           { data: { Items: items.slice(200, 300) } },
+        ]
+      )
+    );
+
+    test(
+      "StrideIterator loops through items in groups of batchSize",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBatchSize(50);
+
+          const iterator = pipeline
+            .query<{ plusOne: string }>({ id: "iterator:1" })
+            .strideIterator();
+
+          let i = 0;
+
+          for await (const group of iterator) {
+            expect(group.length).toEqual(50);
+            i += 1;
+            if (i > 0) {
+              break;
+            }
+          }
+        },
+        [
+          { data: { Items: items.slice(0, 100), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(100, 200) } },
         ]
       )
     );

@@ -1,4 +1,4 @@
-import { DocumentClient, ExpressionAttributeNameMap, ExpressionAttributeValueMap } from "aws-sdk/clients/dynamodb";
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import AWS from "aws-sdk";
 import { Request } from "aws-sdk/lib/request";
 import AWSMock from "aws-sdk-mock";
@@ -25,6 +25,7 @@ export function multiMock(
 ): () => Promise<void> {
   return async () => {
     const spies = mockSet.map((ms) => setupMock(ms.name, ms.returns, true, ms.delay).mock);
+    // eslint-disable-next-line
     const client = new (AWS as any).DynamoDB.DocumentClient();
 
     await fn(client, spies);
@@ -135,6 +136,7 @@ function mockCall<TInput, TOutput>(
     const spy = setupMock<TInput, TOutput>(name, returns, alwaysMock, delay);
 
     // TODO: Type cleanup
+    // eslint-disable-next-line
     const client = new (AWS as any).DynamoDB.DocumentClient();
 
     if (!mockOn && !alwaysMock) {

@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.TableIterator = void 0;
-class TableIterator {
+export class TableIterator {
     constructor(fetcher, pipeline) {
         this.config = { pipeline: pipeline, fetcher };
     }
@@ -95,4 +92,3 @@ class TableIterator {
         return this.config.fetcher.execute();
     }
 }
-exports.TableIterator = TableIterator;

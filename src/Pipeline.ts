@@ -60,7 +60,7 @@ export class Pipeline<
     options?: {
       bufferCapacity?: number;
     }
-  ): TableIterator<this, T> {
+  ): TableIterator<T, this> {
     // get keys into a standard format, filter out any non-key attributes
     const transactGetItems: { tableName: string; keys: Key<KD | KD2> }[] =
       typeof keys[0] !== "undefined" && !("tableName" in keys[0]) && !("keys" in keys[0])
@@ -73,20 +73,20 @@ export class Pipeline<
             keys: this.keyAttributesOnly(key.keys, key.keyDefinition),
           }));
 
-    return new TableIterator<this, T>(
-      this,
+    return new TableIterator(
       new BatchGetFetcher<T, KD>(this.config.client, "transactGet", transactGetItems, {
         bufferCapacity: this.config.readBuffer,
         batchSize: this.config.readBatchSize,
         ...options,
-      })
+      }),
+      this
     );
   }
 
   getItems<T = DocumentClient.AttributeMap>(
     keys: Key<KD>[],
     options?: { batchSize?: number; bufferCapacity?: number }
-  ): TableIterator<this, T> {
+  ): TableIterator<T, this> {
     const handleUnprocessed = (keys: Key<KD>[]) => {
       this.unprocessedItems.push(...keys);
     };
@@ -104,14 +104,14 @@ export class Pipeline<
 
     const batchGetItems = { tableName: this.config.table, keys: tableKeys };
 
-    return new TableIterator<this, T>(
-      this,
+    return new TableIterator(
       new BatchGetFetcher<T, KD>(this.config.client, "batchGet", batchGetItems, {
         batchSize: this.config.readBatchSize,
         bufferCapacity: this.config.readBuffer,
         onUnprocessedKeys: handleUnprocessed,
         ...options,
-      })
+      }),
+      this
     );
   }
 

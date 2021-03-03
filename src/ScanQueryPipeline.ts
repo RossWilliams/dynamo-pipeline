@@ -94,7 +94,7 @@ export class ScanQueryPipeline<
       filters?: ConditionExpression;
       consistentRead?: boolean;
     }
-  ): TableIterator<this, ReturnType> {
+  ): TableIterator<ReturnType, this> {
     const request = this.buildQueryScanRequest({ ...options, keyConditions });
 
     const fetchOptions = {
@@ -103,10 +103,7 @@ export class ScanQueryPipeline<
       ...options,
     };
 
-    return new TableIterator<this, ReturnType>(
-      this,
-      new QueryFetcher<ReturnType>(request, this.config.client, "query", fetchOptions)
-    );
+    return new TableIterator(new QueryFetcher<ReturnType>(request, this.config.client, "query", fetchOptions), this);
   }
 
   scan<ReturnType = DocumentClient.AttributeMap>(options?: {
@@ -114,7 +111,7 @@ export class ScanQueryPipeline<
     bufferCapacity?: number;
     limit?: number;
     filters?: ConditionExpression;
-  }): TableIterator<this, ReturnType> {
+  }): TableIterator<ReturnType, this> {
     const request = this.buildQueryScanRequest(options ?? {});
 
     const fetchOptions = {
@@ -123,10 +120,7 @@ export class ScanQueryPipeline<
       ...options,
     };
 
-    return new TableIterator<this, ReturnType>(
-      this,
-      new QueryFetcher<ReturnType>(request, this.config.client, "scan", fetchOptions)
-    );
+    return new TableIterator(new QueryFetcher<ReturnType>(request, this.config.client, "scan", fetchOptions), this);
   }
 
   private buildQueryScanRequest(options: {

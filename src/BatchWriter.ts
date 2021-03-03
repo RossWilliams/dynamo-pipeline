@@ -115,6 +115,7 @@ export class BatchWriter<KD extends KeyDefinition> {
 
   private getNextChunk(): Key<KD>[] | null {
     if (this.nextToken === null) {
+      /* istanbul ignore next */
       return null;
     }
 

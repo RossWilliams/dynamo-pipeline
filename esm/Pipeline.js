@@ -1,12 +1,9 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.Pipeline = void 0;
-const BatchFetcher_1 = require("./BatchFetcher");
-const TableIterator_1 = require("./TableIterator");
-const BatchWriter_1 = require("./BatchWriter");
-const helpers_1 = require("./helpers");
-const ScanQueryPipeline_1 = require("./ScanQueryPipeline");
-class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
+import { BatchGetFetcher } from "./BatchFetcher";
+import { TableIterator } from "./TableIterator";
+import { BatchWriter } from "./BatchWriter";
+import { conditionToDynamo, pkName } from "./helpers";
+import { ScanQueryPipeline } from "./ScanQueryPipeline";
+export class Pipeline extends ScanQueryPipeline {
     constructor(tableName, keys, config) {
         super(tableName, keys, undefined, config);
         return this;
@@ -27,7 +24,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
     }
     createIndex(name, definition) {
         const { keys, ...config } = this.config;
-        return new ScanQueryPipeline_1.ScanQueryPipeline(this.config.table, definition, name, config);
+        return new ScanQueryPipeline(this.config.table, definition, name, config);
     }
     transactGet(keys, options) {
         // get keys into a standard format, filter out any non-key attributes
@@ -40,7 +37,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
                 tableName: key.tableName,
                 keys: this.keyAttributesOnly(key.keys, key.keyDefinition),
             }));
-        return new TableIterator_1.TableIterator(new BatchFetcher_1.BatchGetFetcher(this.config.client, "transactGet", transactGetItems, {
+        return new TableIterator(new BatchGetFetcher(this.config.client, "transactGet", transactGetItems, {
             bufferCapacity: this.config.readBuffer,
             batchSize: this.config.readBatchSize,
             ...options,
@@ -59,7 +56,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
         // filter out any non-key attributes
         const tableKeys = this.keyAttributesOnlyFromArray(keys, this.config.keys);
         const batchGetItems = { tableName: this.config.table, keys: tableKeys };
-        return new TableIterator_1.TableIterator(new BatchFetcher_1.BatchGetFetcher(this.config.client, "batchGet", batchGetItems, {
+        return new TableIterator(new BatchGetFetcher(this.config.client, "batchGet", batchGetItems, {
             batchSize: this.config.readBatchSize,
             bufferCapacity: this.config.readBuffer,
             onUnprocessedKeys: handleUnprocessed,
@@ -76,7 +73,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
         if (typeof (options === null || options === void 0 ? void 0 : options.batchSize) === "number" && (options.batchSize < 1 || options.batchSize > 25)) {
             throw new Error("Batch size is out of range");
         }
-        const writer = new BatchWriter_1.BatchWriter(this.config.client, { tableName: this.config.table, records: items }, {
+        const writer = new BatchWriter(this.config.client, { tableName: this.config.table, records: items }, {
             batchSize: this.config.writeBatchSize,
             bufferCapacity: this.config.writeBuffer,
             onUnprocessedItems: handleUnprocessed,
@@ -91,7 +88,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
             Item: item,
         };
         if (condition) {
-            const compiledCondition = helpers_1.conditionToDynamo(condition);
+            const compiledCondition = conditionToDynamo(condition);
             request.ConditionExpression = compiledCondition.Condition;
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
@@ -108,7 +105,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
     putIfNotExists(item) {
         const pkCondition = {
             operator: "attribute_not_exists",
-            property: helpers_1.pkName(this.config.keys),
+            property: pkName(this.config.keys),
         };
         return this.put(item, pkCondition);
     }
@@ -135,7 +132,7 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
             ...((options === null || options === void 0 ? void 0 : options.returnType) && { ReturnValues: options.returnType }),
         };
         if (options === null || options === void 0 ? void 0 : options.condition) {
-            const compiledCondition = helpers_1.conditionToDynamo(options.condition, {
+            const compiledCondition = conditionToDynamo(options.condition, {
                 Condition: "",
                 ...(Object.keys(expressionNames).length > 0 && {
                     ExpressionAttributeNames: expressionNames,
@@ -166,15 +163,15 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
             ...((options === null || options === void 0 ? void 0 : options.returnType) && { ReturnValues: options.returnType }),
         };
         if (options === null || options === void 0 ? void 0 : options.condition) {
-            const compiledCondition = helpers_1.conditionToDynamo(options.condition);
+            const compiledCondition = conditionToDynamo(options.condition);
             request.ConditionExpression = compiledCondition.Condition;
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
         }
         else {
-            const compiledCondition = helpers_1.conditionToDynamo({
+            const compiledCondition = conditionToDynamo({
                 operator: "attribute_exists",
-                property: helpers_1.pkName(this.config.keys),
+                property: pkName(this.config.keys),
             });
             request.ConditionExpression = compiledCondition.Condition;
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
@@ -207,4 +204,3 @@ class Pipeline extends ScanQueryPipeline_1.ScanQueryPipeline {
         };
     }
 }
-exports.Pipeline = Pipeline;

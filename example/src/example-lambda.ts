@@ -1,5 +1,5 @@
 // import { Pipeline, sortKey } from "dynamo-pipeline";
-import { Pipeline, sortKey } from "../src";
+import { Pipeline, sortKey } from "../../";
 const TABLE_NAME = process.env.TABLE_NAME || "example-2c19f773";
 interface AddUserCalendarEvent {
   userId: string;
@@ -55,7 +55,7 @@ export async function handler(event: AddUserCalendarEvent): Promise<{ error: str
     console.info(`
     Info: Calendar Event not added. Version does not match expected version
       User Version: ${event.expectedVersion}
-      Actual Version: ${updatedUserVersion}
+      Actual Version: ${updatedUserVersion ?? ""}
     `);
     return { error: "Version Conflict Error" };
   }

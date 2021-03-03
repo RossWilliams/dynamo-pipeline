@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "outDir": "dist",
+    "target": "ES2019",
     "moduleResolution": "node",
     "declaration": true,
     "incremental": true,
     "types": ["jest", "node"],
     "esModuleInterop": true,
-    "target": "ES2019",
+    "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -15,8 +15,9 @@
     "noUnusedLocals": false,
     "noUncheckedIndexedAccess": true,
     "alwaysStrict": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "outDir": "lib"
   },
-  "exclude": ["dist", "node_moules"],
-  "include": ["src", "test"]
+  "exclude": ["lib", "node_modules", "test"],
+  "include": ["src", "mocks"]
 }

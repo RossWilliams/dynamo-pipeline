@@ -2,9 +2,7 @@
 
 Alternative API for DynamoDB DocumentClient to improve types, allow easy iteration and paging of data, and reduce developer mistakes. From "So complex there are no obvious mistakes" to "So simple there are obviously no mistakes".
 
-## Status - API unstable, pin exact commit hash
-
-Code is functional, but developer ergonomics and data structures will change significantly.
+5KB gzipped (excluding aws-sdk DocumentClient).
 
 ### Limitations
 
@@ -35,7 +33,7 @@ const privatePipeline = new Pipeline("PrivateTableName-xxx", { pk: "id", sk: "sk
 
 await privatePipeline
   .query<Item>(
-    { pk: "FormId", sk: "> 0000" },
+    { pk: "FormId", sk: sortKey(">", "0000") },
     {
       limit: 5000,
       filters: {
@@ -45,7 +43,7 @@ await privatePipeline
       },
     }
   )
-  .forEach((item, pipeline) => pipeline.update(item, { gsi1pk: data.attr1, gsi1sk: data.attr2 }));
+  .forEach((item, _index, pipeline) => pipeline.update(item, { gsi1pk: data.attr1, gsi1sk: data.attr2 }));
 
 privatePipeline.handleUnprocessed((item) => console.error(`Update Failed: id: ${item.id} , sk: ${item.sk}`));
 ```

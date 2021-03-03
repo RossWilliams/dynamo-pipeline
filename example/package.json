@@ -8,11 +8,13 @@
   "private": true,
   "scripts": {
     "test": "NODE_ENV=test jest",
-    "build": "tsc --build"
+    "tsc": "tsc --noEmit",
+    "build": "esbuild src/example-lambda.ts --bundle --platform=node --external:aws-sdk --target=node12 --outfile=dist/index.js --minify"
   },
   "dependencies": {
     "@types/jest": "^26.0.20",
-    "dynamo-pipeline": "git://github.com/RossWilliams/dynamo-pipeline.git"
+    "dynamo-pipeline": "git://github.com/RossWilliams/dynamo-pipeline.git",
+    "esbuild": "^0.8.54"
   },
   "devDependencies": {
     "typescript": "^4.2.2"

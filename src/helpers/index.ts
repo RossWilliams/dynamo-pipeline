@@ -120,9 +120,9 @@ function comparisonOperator(
   nameStart: number,
   valueStart: number
 ) {
-  const lhs = typeof condition.lhs === "string" ? "#p" + nameStart : "#p" + nameStart;
+  const lhs = typeof condition.lhs === "string" ? "#p" + nameStart.toString() : "#p" + nameStart.toString();
   (typeof condition.lhs === "string" || "property" in condition.lhs) && (nameStart += 1);
-  const rhs = "property" in condition.rhs ? "#p" + nameStart : ":v" + valueStart;
+  const rhs = "property" in condition.rhs ? "#p" + nameStart.toString() : ":v" + valueStart.toString();
   return `${
     typeof condition.lhs !== "string" && "function" in condition.lhs ? condition.lhs.function + "(" : ""
   }${lhs}${typeof condition.lhs !== "string" && "function" in condition.lhs ? ")" : ""} ${condition.operator} ${
@@ -140,6 +140,7 @@ function conditionToConditionString(
   // lhs, rhs, start,end,list
   // lhs, rhs, property, arg2
   if ("logical" in condition) {
+    /* istanbul ignore next */
     throw new Error("Unimplemented");
   }
 
@@ -165,13 +166,14 @@ function conditionToConditionString(
     case "between":
       return `#p${nameStart} BETWEEN :v${valueStart} AND :v${valueStart + 1}`;
     case "in":
-      return `${"#p" + nameStart} IN (${condition.list
+      return `${"#p" + nameStart.toString()} IN (${condition.list
         .map(() => {
           valueStart += 1;
           return `:v${valueStart - 1}`;
         })
         .join(",")})`;
     default:
+      /* istanbul ignore next */
       throw new Error("Operator does not exist");
   }
 }
@@ -202,7 +204,7 @@ function conditionToAttributeValues(condition: ConditionExpression, countStart =
   return values;
 }
 
-function setPropertyValue(value: PrimitiveType, values: { [key: string]: any }, countStart: number) {
+function setPropertyValue(value: PrimitiveType, values: { [key: string]: PrimitiveType }, countStart: number) {
   // note this is the main place to change if we switch from document client to the regular dynamodb client
   const dynamoValue = Array.isArray(value)
     ? value.join("")
@@ -215,8 +217,8 @@ function setPropertyValue(value: PrimitiveType, values: { [key: string]: any }, 
   return setRawPropertyValue(dynamoValue, values, countStart);
 }
 
-function setRawPropertyValue(value: any, values: { [key: string]: any }, countStart: number) {
-  const name = ":v" + (Object.keys(values).length + countStart);
+function setRawPropertyValue(value: PrimitiveType, values: { [key: string]: any }, countStart: number) {
+  const name: string = ":v" + (Object.keys(values).length + countStart).toString();
   values[name] = value;
   return values;
 }
@@ -244,5 +246,7 @@ function conditionToAttributeNames(condition: ConditionExpression, countStart = 
 }
 
 function splitAndSetPropertyName(propertyName: string, names: { [key: string]: string }, countStart: number) {
-  return propertyName.split(".").forEach((prop) => (names["#p" + (Object.keys(names).length + countStart)] = prop));
+  return propertyName
+    .split(".")
+    .forEach((prop) => (names["#p" + (Object.keys(names).length + countStart).toString()] = prop));
 }

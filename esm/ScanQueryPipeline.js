@@ -1,18 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ScanQueryPipeline = exports.sortKey = void 0;
-const dynamodb_1 = require("aws-sdk/clients/dynamodb");
-const helpers_1 = require("./helpers");
-const QueryFetcher_1 = require("./QueryFetcher");
-const TableIterator_1 = require("./TableIterator");
-const sortKey = (...args) => {
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { conditionToDynamo, skQueryToDynamoString } from "./helpers";
+import { QueryFetcher } from "./QueryFetcher";
+import { TableIterator } from "./TableIterator";
+export const sortKey = (...args) => {
     if (args.length === 3) {
         return ["between", "and", args[1], args[2]];
     }
     return args;
 };
-exports.sortKey = sortKey;
-class ScanQueryPipeline {
+export class ScanQueryPipeline {
     constructor(tableName, keys, index, config) {
         this.config = {
             table: tableName,
@@ -25,7 +21,7 @@ class ScanQueryPipeline {
             // class are too long
             keys: keys,
             index: index,
-            client: (config && config.client) || new dynamodb_1.DocumentClient(),
+            client: (config && config.client) || new DocumentClient(),
         };
         this.unprocessedItems = [];
         return this;
@@ -51,7 +47,7 @@ class ScanQueryPipeline {
             batchSize: this.config.readBatchSize,
             ...options,
         };
-        return new TableIterator_1.TableIterator(new QueryFetcher_1.QueryFetcher(request, this.config.client, "query", fetchOptions), this);
+        return new TableIterator(new QueryFetcher(request, this.config.client, "query", fetchOptions), this);
     }
     scan(options) {
         const request = this.buildQueryScanRequest(options !== null && options !== void 0 ? options : {});
@@ -60,7 +56,7 @@ class ScanQueryPipeline {
             batchSize: this.config.readBatchSize,
             ...options,
         };
-        return new TableIterator_1.TableIterator(new QueryFetcher_1.QueryFetcher(request, this.config.client, "scan", fetchOptions), this);
+        return new TableIterator(new QueryFetcher(request, this.config.client, "scan", fetchOptions), this);
     }
     buildQueryScanRequest(options) {
         const pkName = this.config.keys.pk;
@@ -75,7 +71,7 @@ class ScanQueryPipeline {
             }),
             ...(this.config.index && { IndexName: this.config.index }),
             ...(options.keyConditions && {
-                KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND #p1 ${helpers_1.skQueryToDynamoString(skValue)}` : ""),
+                KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND #p1 ${skQueryToDynamoString(skValue)}` : ""),
             }),
             ConsistentRead: Boolean(options.consistentRead),
         };
@@ -103,7 +99,7 @@ class ScanQueryPipeline {
                 : undefined,
         };
         if (options.filters) {
-            const compiledCondition = helpers_1.conditionToDynamo(options.filters, keySubstitues);
+            const compiledCondition = conditionToDynamo(options.filters, keySubstitues);
             request.FilterExpression = compiledCondition.Condition;
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
@@ -115,4 +111,3 @@ class ScanQueryPipeline {
         return request;
     }
 }
-exports.ScanQueryPipeline = ScanQueryPipeline;

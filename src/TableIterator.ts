@@ -3,14 +3,14 @@ import DynamoDB from "aws-sdk/clients/dynamodb";
 interface IteratorExecutor<T> {
   execute(): AsyncGenerator<T[], void, void>;
 }
-export class TableIterator<P, T = DynamoDB.AttributeMap> {
+export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
   config: {
     pipeline: P;
     fetcher: IteratorExecutor<T>;
   };
 
-  constructor(pipeline: P, fetcher: IteratorExecutor<T>) {
-    this.config = { pipeline, fetcher };
+  constructor(fetcher: IteratorExecutor<T>, pipeline?: P) {
+    this.config = { pipeline: pipeline as P, fetcher };
   }
 
   async forEachStride(
@@ -88,7 +88,7 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
     return results;
   }
 
-  mapLazy<U>(iterator: (item: T, index: number) => U): TableIterator<P, U> {
+  mapLazy<U>(iterator: (item: T, index: number) => U): TableIterator<U, P> {
     const existingFetcher = this.config.fetcher;
     let results: U[] = [];
     let index = 0;
@@ -106,7 +106,7 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
       }
     };
 
-    return new TableIterator<P, U>(this.config.pipeline, { execute: fetcher });
+    return new TableIterator({ execute: fetcher }, this.config.pipeline);
   }
 
   all(): Promise<T[]> {
@@ -122,5 +122,9 @@ export class TableIterator<P, T = DynamoDB.AttributeMap> {
         yield item;
       }
     }
+  }
+
+  strideIterator(): AsyncGenerator<T[], void, void> {
+    return this.config.fetcher.execute();
   }
 }

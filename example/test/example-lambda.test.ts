@@ -1,6 +1,7 @@
-// import { mockUpdate, multiMock } from "dynamo-pipeline/testHelpers";
-import { mockUpdate, multiMock } from "../src/testHelpers";
-import { handler } from "./example-lambda";
+// import { mocks } from "dynamo-pipeline";
+import DynamoDB from "aws-sdk/clients/dynamodb";
+import * as mocks from "../../lib/mocks";
+import { handler } from "../src/example-lambda";
 
 const testEvent = {
   userId: "1",
@@ -11,7 +12,7 @@ const testEvent = {
 describe("Example Lambda", () => {
   test(
     "Throws when invalid startDateTime event property is supplied",
-    mockUpdate(
+    mocks.mockUpdate(
       async (_client, spy) => {
         const result = await handler({ ...testEvent, startDateTime: "INVALID" });
 
@@ -24,7 +25,7 @@ describe("Example Lambda", () => {
 
   test(
     "Attempts to update user profile, returns early if expected version does not match",
-    mockUpdate(
+    mocks.mockUpdate(
       async (_client, spy) => {
         const result = await handler({ ...testEvent, expectedVersion: 0 });
         const request = spy.calls[0]![0]; // eslint-disable-line
@@ -40,7 +41,7 @@ describe("Example Lambda", () => {
 
   test(
     "When expected version is valid, queries existing calendar items in next 7 days",
-    multiMock(
+    mocks.multiMock(
       async (_client, spies) => {
         const result = await handler(testEvent);
         // eslint-disable-next-line
@@ -48,7 +49,7 @@ describe("Example Lambda", () => {
 
         expect("error" in result).toBeFalsy();
         expect(querySpy.calls.length).toEqual(1);
-        const request = querySpy.calls[0]?.[0];
+        const request = querySpy.calls[0]?.[0] as DynamoDB.QueryInput;
         expect(request.IndexName).toEqual("gsi1");
         expect(request.KeyConditionExpression?.includes("between")).toBeTruthy();
       },
@@ -63,20 +64,20 @@ describe("Example Lambda", () => {
 
   test(
     "Deletes all existing queried calendar events",
-    multiMock(
+    mocks.multiMock(
       async (_client, spies) => {
         const deleteSpy = spies[2]!; // eslint-disable-line
 
         await handler(testEvent);
-        const deleteKeys = deleteSpy.calls.map((call) => call[0].Key);
+        const deleteKeys = (deleteSpy.calls as [[DynamoDB.DeleteItemInput]]).map((call) => call[0].Key);
 
         expect(deleteSpy.calls.length).toEqual(3);
-        expect(deleteKeys[0]?.pk).toEqual("1");
-        expect(deleteKeys[0]?.sk).toEqual("1");
-        expect(deleteKeys[1]?.pk).toEqual("2");
-        expect(deleteKeys[1]?.sk).toEqual("2");
-        expect(deleteKeys[2]?.pk).toEqual("3");
-        expect(deleteKeys[2]?.sk).toEqual("3");
+        expect(deleteKeys[0]?.id).toEqual("1");
+        expect(deleteKeys[0]?.sort).toEqual("1");
+        expect(deleteKeys[1]?.id).toEqual("2");
+        expect(deleteKeys[1]?.sort).toEqual("2");
+        expect(deleteKeys[2]?.id).toEqual("3");
+        expect(deleteKeys[2]?.sort).toEqual("3");
       },
       [
         {
@@ -84,9 +85,9 @@ describe("Example Lambda", () => {
           returns: {
             data: {
               Items: [
-                { pk: "1", sk: "1" },
-                { pk: "2", sk: "2" },
-                { pk: "3", sk: "3" },
+                { id: "1", sort: "1" },
+                { id: "2", sort: "2" },
+                { id: "3", sort: "3" },
               ],
             },
           },
@@ -100,12 +101,12 @@ describe("Example Lambda", () => {
 
   test(
     "Adds new calendar item afer deleting other calendar items",
-    multiMock(
+    mocks.multiMock(
       async (_queryClient, spies) => {
         const putSpy = spies[0]!; // eslint-disable-line
 
         await handler(testEvent);
-        const request = putSpy.calls[0]![0]; // eslint-disable-line
+        const request = putSpy.calls[0]![0] as DynamoDB.PutItemInput; // eslint-disable-line
 
         expect(putSpy.calls.length).toEqual(1);
         expect(request.Item.start).toEqual(testEvent.startDateTime);
@@ -118,9 +119,9 @@ describe("Example Lambda", () => {
           returns: {
             data: {
               Items: [
-                { pk: "1", sk: "1" },
-                { pk: "2", sk: "2" },
-                { pk: "3", sk: "3" },
+                { id: "1", sort: "1" },
+                { id: "2", sort: "2" },
+                { id: "3", sort: "3" },
               ],
             },
           },
