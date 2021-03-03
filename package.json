@@ -25,7 +25,8 @@
     "test:watch": "NODE_ENV=test jest --watch",
     "test:dynamodb": "TEST_WITH_DYNAMO=true NODE_ENV=test jest",
     "lint": "eslint './{src,test}/*.ts' --cache --cache-location '.buildcache/' --fix --ext .ts",
-    "format": "prettier --write ./{src,test}/*.ts"
+    "format": "prettier --write ./{src,test}/*.ts",
+    "prepare": "husky install"
   },
   "dependencies": {
     "aws-sdk": "^2.814.0",
@@ -50,11 +51,6 @@
     "prettier": "^2.2.1",
     "ts-jest": "^26.5.2",
     "typescript": "4.2.2"
-  },
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint && yarn format && yarn build"
-    }
   },
   "jest": {
     "testRegex": "/(test)/.*\\.test\\.[jt]s?$",
