@@ -1,7 +1,7 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { TableIterator } from "./TableIterator";
 import { ComparisonOperator, ConditionExpression, Key, KeyConditions, QueryTemplate, Scalar } from "./types";
-export declare type SortArgs = [Exclude<ComparisonOperator, "<>">, Scalar] | ["between", Scalar, Scalar];
+export declare type SortArgs = [Exclude<ComparisonOperator | "begins_with", "<>">, Scalar] | ["between", Scalar, Scalar];
 export declare const sortKey: (...args: SortArgs) => QueryTemplate;
 export declare class ScanQueryPipeline<PK extends string, SK extends string | undefined = undefined, KD extends {
     pk: PK;
@@ -31,6 +31,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         readBatchSize?: number;
         writeBatchSize?: number;
     });
+    static sortKey: (...args: SortArgs) => QueryTemplate;
     withReadBuffer(readBuffer: number): this;
     withReadBatchSize(readBatchSize: number): this;
     query<ReturnType = DocumentClient.AttributeMap>(keyConditions: KeyConditions<{

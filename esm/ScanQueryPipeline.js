@@ -111,3 +111,4 @@ export class ScanQueryPipeline {
         return request;
     }
 }
+ScanQueryPipeline.sortKey = sortKey;

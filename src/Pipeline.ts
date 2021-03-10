@@ -5,7 +5,7 @@ import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { BatchWriter } from "./BatchWriter";
 import { conditionToDynamo, pkName } from "./helpers";
-import { ScanQueryPipeline } from "./ScanQueryPipeline";
+import { ScanQueryPipeline, sortKey } from "./ScanQueryPipeline";
 
 export class Pipeline<
   PK extends string,
