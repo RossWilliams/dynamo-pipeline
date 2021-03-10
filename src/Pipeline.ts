@@ -184,7 +184,7 @@ export class Pipeline<
       condition?: ConditionExpression;
       returnType?: UpdateReturnValues;
     }
-  ): DocumentClient.UpdateItemInput {
+  ): DocumentClient.UpdateItemInput & { UpdateExpression: string } {
     const expression = Object.keys(attributes)
       .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
       .join(", ");
@@ -200,7 +200,7 @@ export class Pipeline<
       }),
       {}
     );
-    const request: DocumentClient.UpdateItemInput = {
+    const request: DocumentClient.UpdateItemInput & { UpdateExpression: string } = {
       TableName: this.config.table,
       Key: this.keyAttributesOnly(key, this.config.keys),
 
