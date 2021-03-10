@@ -7,6 +7,7 @@ export declare class QueryFetcher<T> extends AbstractFetcher<T> {
         batchSize: number;
         bufferCapacity: number;
         limit?: number;
+        nextToken?: DocumentClient.Key;
     });
     fetchStrategy(): null | Promise<any>;
     processResult(data: DocumentClient.ScanOutput | DocumentClient.QueryOutput | void): void;

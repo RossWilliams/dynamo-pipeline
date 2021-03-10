@@ -43,12 +43,14 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         limit?: number;
         filters?: ConditionExpression;
         consistentRead?: boolean;
+        nextToken?: Key<KD>;
     }): TableIterator<ReturnType, this>;
     scan<ReturnType = DocumentClient.AttributeMap>(options?: {
         batchSize?: number;
         bufferCapacity?: number;
         limit?: number;
         filters?: ConditionExpression;
+        nextToken?: Key<KD>;
     }): TableIterator<ReturnType, this>;
     private buildQueryScanRequest;
 }

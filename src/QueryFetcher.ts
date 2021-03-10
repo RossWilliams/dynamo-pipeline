@@ -13,12 +13,17 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
       batchSize: number;
       bufferCapacity: number;
       limit?: number;
+      nextToken?: DocumentClient.Key;
     }
   ) {
     super(client, options);
     this.request = request;
     this.operation = operation;
-    this.nextToken = 1;
+    if (options.nextToken) {
+      this.nextToken = options.nextToken;
+    } else {
+      this.nextToken = 1;
+    }
   }
 
   // TODO: remove null response type

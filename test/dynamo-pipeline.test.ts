@@ -1578,6 +1578,8 @@ describe("Dynamo Pipeline", () => {
             {
               batchSize: 50,
               limit: 80,
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              nextToken: { id: items[19]!.id, sk: items[19]!.sk },
               consistentRead: true,
               filters: {
                 lhs: {
@@ -1598,7 +1600,10 @@ describe("Dynamo Pipeline", () => {
           expect(result.length).toEqual(80);
           expect(spy.calls.length).toEqual(2);
         },
-        [{ data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } }, { data: { Items: items.slice(50, 100) } }]
+        [
+          { data: { Items: items.slice(20, 70), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(70, 100) } },
+        ]
       )
     );
 
