@@ -12,7 +12,7 @@ import {
   Scalar,
 } from "./types";
 
-export type SortArgs = [Exclude<ComparisonOperator, "<>"> | "begins_with", Scalar] | ["between", Scalar, Scalar];
+export type SortArgs = [Exclude<ComparisonOperator, "<>">, Scalar] | ["between", Scalar, Scalar];
 
 export const sortKey = (...args: SortArgs): QueryTemplate => {
   if (args.length === 3) {

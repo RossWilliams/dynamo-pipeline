@@ -1,6 +1,6 @@
 export class TableIterator {
-    constructor(fetcher, pipeline) {
-        this.config = { pipeline: pipeline, fetcher };
+    constructor(fetcher, parent) {
+        this.config = { parent: parent, fetcher };
     }
     async forEachStride(iterator) {
         let index = 0;
@@ -10,13 +10,13 @@ export class TableIterator {
             cancelled = true;
         };
         for await (const stride of executor) {
-            await iterator(stride, index, this.config.pipeline, cancel);
+            await iterator(stride, index, this.config.parent, cancel);
             index += 1;
             if (cancelled) {
                 break;
             }
         }
-        return this.config.pipeline;
+        return this.config.parent;
     }
     // when a promise is returned, all promises are resolved in the batch before processing the next batch
     async forEach(iterator) {
@@ -31,7 +31,7 @@ export class TableIterator {
         strides: for await (const stride of executor) {
             iteratorPromises = [];
             for (const item of stride) {
-                const iteratorResponse = iterator(item, index, this.config.pipeline, cancel);
+                const iteratorResponse = iterator(item, index, this.config.parent, cancel);
                 index += 1;
                 if (cancelled) {
                     await Promise.all(iteratorPromises);
@@ -45,7 +45,7 @@ export class TableIterator {
             await Promise.all(iteratorPromises);
         }
         await Promise.all(iteratorPromises);
-        return this.config.pipeline;
+        return this.config.parent;
     }
     async map(iterator) {
         const results = [];
@@ -58,6 +58,21 @@ export class TableIterator {
             }
         }
         return results;
+    }
+    filterLazy(predicate) {
+        const existingFetcher = this.config.fetcher;
+        let index = 0;
+        const fetcher = async function* () {
+            const executor = existingFetcher.execute();
+            for await (const stride of executor) {
+                yield stride.filter((val, i) => {
+                    const filtered = predicate(val, index);
+                    index += 1;
+                    return filtered;
+                });
+            }
+        };
+        return new TableIterator({ execute: fetcher }, this.config.parent);
     }
     mapLazy(iterator) {
         const existingFetcher = this.config.fetcher;
@@ -74,7 +89,7 @@ export class TableIterator {
                 yield results;
             }
         };
-        return new TableIterator({ execute: fetcher }, this.config.pipeline);
+        return new TableIterator({ execute: fetcher }, this.config.parent);
     }
     all() {
         const result = this.map((i) => i);

@@ -177,16 +177,14 @@ export class Pipeline<
     return this.put(item, pkCondition);
   }
 
-  update<T extends DocumentClient.AttributeMap>(
+  buildUpdateRequest(
     key: Key<KD>,
     attributes: Record<string, PrimitiveType>,
     options?: {
       condition?: ConditionExpression;
       returnType?: UpdateReturnValues;
     }
-  ): Promise<T | null> {
-    // TODO: Cleanup and extact
-
+  ): DocumentClient.UpdateItemInput {
     const expression = Object.keys(attributes)
       .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
       .join(", ");
@@ -202,10 +200,10 @@ export class Pipeline<
       }),
       {}
     );
-
     const request: DocumentClient.UpdateItemInput = {
       TableName: this.config.table,
       Key: this.keyAttributesOnly(key, this.config.keys),
+
       UpdateExpression: `SET ${expression}`,
       ...(Object.keys(expressionNames).length > 0 && {
         ExpressionAttributeNames: expressionNames,
@@ -230,6 +228,20 @@ export class Pipeline<
       request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
       request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
     }
+
+    return request;
+  }
+
+  update<T extends DocumentClient.AttributeMap>(
+    key: Key<KD>,
+    attributes: Record<string, PrimitiveType>,
+    options?: {
+      condition?: ConditionExpression;
+      returnType?: UpdateReturnValues;
+    }
+  ): Promise<T | null> {
+    // TODO: Cleanup and extact
+    const request = this.buildUpdateRequest(key, attributes, options);
 
     return this.config.client
       .update(request)

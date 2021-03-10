@@ -109,8 +109,7 @@ export class Pipeline extends ScanQueryPipeline {
         };
         return this.put(item, pkCondition);
     }
-    update(key, attributes, options) {
-        // TODO: Cleanup and extact
+    buildUpdateRequest(key, attributes, options) {
         const expression = Object.keys(attributes)
             .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
             .join(", ");
@@ -145,6 +144,11 @@ export class Pipeline extends ScanQueryPipeline {
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
         }
+        return request;
+    }
+    update(key, attributes, options) {
+        // TODO: Cleanup and extact
+        const request = this.buildUpdateRequest(key, attributes, options);
         return this.config.client
             .update(request)
             .promise()

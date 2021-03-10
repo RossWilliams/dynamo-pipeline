@@ -503,11 +503,7 @@ describe("Dynamo Pipeline", () => {
           );
           expect(result).toStrictEqual({ other: 2 });
 
-          const result2 = await pipeline.update(
-            { id: "update:1", sk: "1" },
-            { other: 3 },
-            { returnType: "UPDATED_NEW" }
-          );
+          const result2 = await pipeline.update({ id: "update:1", sk: "1" }, { other: 3 });
 
           expect(result2).toStrictEqual({ other: 3 });
         },
@@ -668,7 +664,7 @@ describe("Dynamo Pipeline", () => {
           );
           const result = await pipeline.delete(
             { id: "delete:3", sk: "3" },
-            { condition: { lhs: "other", operator: "<", rhs: { value: 0 } }, returnType: "ALL_OLD", reportError: true }
+            { condition: { lhs: "other", operator: "<", rhs: { value: 0 } }, reportError: true }
           );
 
           const input = spy.calls[0]![0]; // eslint-disable-line
@@ -1420,6 +1416,23 @@ describe("Dynamo Pipeline", () => {
         { data: { Responses: [{ Item: items[0] }] } }
       )
     );
+
+    test(
+      "Transact Get 2 items can specify the name of the table for each item",
+      mockTransactGet(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          const result = await pipeline
+            .transactGet<{ other: string }>([
+              { tableName: TEST_TABLE, keys: { id: "transactGet:1", sk: "1" }, keyDefinition: { pk: "id", sk: "sk" } },
+              { tableName: TEST_TABLE, keys: { id: "transactGet:2", sk: "2" }, keyDefinition: { pk: "id", sk: "sk" } },
+            ])
+            .all();
+          expect(result.length).toEqual(1);
+        },
+        { data: { Responses: [{ Item: items[0] }] } }
+      )
+    );
   });
 
   describe("Query", () => {
@@ -1739,6 +1752,45 @@ describe("Dynamo Pipeline", () => {
             .forEach(async (_item, index) => {
               await new Promise((resolve, reject) => setTimeout(resolve, 1));
               expect(lazyCounter - index).toBeLessThanOrEqual(50);
+            });
+        },
+        [
+          { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
+          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
+          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
+          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          { data: { Items: items.slice(250, 300) } },
+        ]
+      )
+    );
+
+    test(
+      "Filter Lazy waits until other method is called to execute iterator",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client })
+            .withReadBatchSize(50)
+            .withReadBuffer(1);
+
+          let lazyCounter = 0;
+
+          await pipeline
+            .query<{ plusOne: string; evenIsOne: number }>({ id: "iterator:1" })
+            .filterLazy((item, index) => {
+              console.info(index.toString() + " filter");
+              return item.evenIsOne % 2 === 1;
+            })
+            .mapLazy((item, index) => {
+              console.info(index.toString() + " map");
+              lazyCounter = index;
+              return { plusOneNum: parseInt(item.plusOne, 10), evenIsOne: item.evenIsOne };
+            })
+            .forEach(async (item, index) => {
+              console.info(index.toString() + " forEAch");
+              await new Promise((resolve, reject) => setTimeout(resolve, 1));
+              expect(lazyCounter - index).toBeLessThanOrEqual(50);
+              expect(item.plusOneNum % 2).toEqual(1);
             });
         },
         [

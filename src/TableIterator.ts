@@ -5,16 +5,16 @@ interface IteratorExecutor<T> {
 }
 export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
   config: {
-    pipeline: P;
+    parent: P;
     fetcher: IteratorExecutor<T>;
   };
 
-  constructor(fetcher: IteratorExecutor<T>, pipeline?: P) {
-    this.config = { pipeline: pipeline as P, fetcher };
+  constructor(fetcher: IteratorExecutor<T>, parent?: P) {
+    this.config = { parent: parent as P, fetcher };
   }
 
   async forEachStride(
-    iterator: (items: T[], index: number, pipeline: P, cancel: () => void) => Promise<any> | void
+    iterator: (items: T[], index: number, parent: P, cancel: () => void) => Promise<any> | void
   ): Promise<P> {
     let index = 0;
     const executor = this.config.fetcher.execute();
@@ -24,7 +24,7 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     };
 
     for await (const stride of executor) {
-      await iterator(stride, index, this.config.pipeline, cancel);
+      await iterator(stride, index, this.config.parent, cancel);
       index += 1;
 
       if (cancelled) {
@@ -32,7 +32,7 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
       }
     }
 
-    return this.config.pipeline;
+    return this.config.parent;
   }
 
   // when a promise is returned, all promises are resolved in the batch before processing the next batch
@@ -51,7 +51,7 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     strides: for await (const stride of executor) {
       iteratorPromises = [];
       for (const item of stride) {
-        const iteratorResponse = iterator(item, index, this.config.pipeline, cancel);
+        const iteratorResponse = iterator(item, index, this.config.parent, cancel);
         index += 1;
 
         if (cancelled) {
@@ -69,7 +69,7 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
 
     await Promise.all(iteratorPromises);
 
-    return this.config.pipeline;
+    return this.config.parent;
   }
 
   async map<U>(iterator: (item: T, index: number) => U): Promise<U[]> {
@@ -86,6 +86,25 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     }
 
     return results;
+  }
+
+  filterLazy(predicate: (item: T, index: number) => boolean): TableIterator<T, P> {
+    const existingFetcher = this.config.fetcher;
+
+    let index = 0;
+
+    const fetcher = async function* () {
+      const executor = existingFetcher.execute();
+      for await (const stride of executor) {
+        yield stride.filter((val, i) => {
+          const filtered = predicate(val, index);
+          index += 1;
+          return filtered;
+        });
+      }
+    };
+
+    return new TableIterator({ execute: fetcher }, this.config.parent);
   }
 
   mapLazy<U>(iterator: (item: T, index: number) => U): TableIterator<U, P> {
@@ -106,7 +125,7 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
       }
     };
 
-    return new TableIterator({ execute: fetcher }, this.config.pipeline);
+    return new TableIterator({ execute: fetcher }, this.config.parent);
   }
 
   all(): Promise<T[]> {

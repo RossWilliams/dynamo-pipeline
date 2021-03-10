@@ -86,6 +86,7 @@ export class BatchWriter {
     }
     getNextChunk() {
         if (this.nextToken === null) {
+            /* istanbul ignore next */
             return null;
         }
         const chunk = this.chunks[this.nextToken] || null;

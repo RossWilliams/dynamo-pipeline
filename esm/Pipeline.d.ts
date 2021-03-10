@@ -43,6 +43,10 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
     }): Promise<Pipeline<PK, SK>>;
     put<Item extends Key<KD>>(item: Item, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>>;
     putIfNotExists<Item extends Key<KD>>(item: Item): Promise<Pipeline<PK, SK>>;
+    buildUpdateRequest(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
+        condition?: ConditionExpression;
+        returnType?: UpdateReturnValues;
+    }): DocumentClient.UpdateItemInput;
     update<T extends DocumentClient.AttributeMap>(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
         condition?: ConditionExpression;
         returnType?: UpdateReturnValues;

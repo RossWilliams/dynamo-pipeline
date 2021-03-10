@@ -69,9 +69,9 @@ export function skQueryToDynamoString(template) {
     return `${template[0]} :v1 ${template.length > 2 ? "AND" : ""} ${template.length > 2 ? ":v2" : ""}`;
 }
 function comparisonOperator(condition, nameStart, valueStart) {
-    const lhs = typeof condition.lhs === "string" ? "#p" + nameStart : "#p" + nameStart;
+    const lhs = typeof condition.lhs === "string" ? "#p" + nameStart.toString() : "#p" + nameStart.toString();
     (typeof condition.lhs === "string" || "property" in condition.lhs) && (nameStart += 1);
-    const rhs = "property" in condition.rhs ? "#p" + nameStart : ":v" + valueStart;
+    const rhs = "property" in condition.rhs ? "#p" + nameStart.toString() : ":v" + valueStart.toString();
     return `${typeof condition.lhs !== "string" && "function" in condition.lhs ? condition.lhs.function + "(" : ""}${lhs}${typeof condition.lhs !== "string" && "function" in condition.lhs ? ")" : ""} ${condition.operator} ${"function" in condition.rhs ? condition.rhs.function + "(" : ""}${rhs}${"function" in condition.rhs ? ")" : ""}`;
 }
 function conditionToConditionString(condition, nameCountStart, valueCountStart) {
@@ -80,6 +80,7 @@ function conditionToConditionString(condition, nameCountStart, valueCountStart) 
     // lhs, rhs, start,end,list
     // lhs, rhs, property, arg2
     if ("logical" in condition) {
+        /* istanbul ignore next */
         throw new Error("Unimplemented");
     }
     const nameStart = nameCountStart;
@@ -103,13 +104,14 @@ function conditionToConditionString(condition, nameCountStart, valueCountStart) 
         case "between":
             return `#p${nameStart} BETWEEN :v${valueStart} AND :v${valueStart + 1}`;
         case "in":
-            return `${"#p" + nameStart} IN (${condition.list
+            return `${"#p" + nameStart.toString()} IN (${condition.list
                 .map(() => {
                 valueStart += 1;
                 return `:v${valueStart - 1}`;
             })
                 .join(",")})`;
         default:
+            /* istanbul ignore next */
             throw new Error("Operator does not exist");
     }
 }
@@ -144,7 +146,7 @@ function setPropertyValue(value, values, countStart) {
     return setRawPropertyValue(dynamoValue, values, countStart);
 }
 function setRawPropertyValue(value, values, countStart) {
-    const name = ":v" + (Object.keys(values).length + countStart);
+    const name = ":v" + (Object.keys(values).length + countStart).toString();
     values[name] = value;
     return values;
 }
@@ -163,5 +165,7 @@ function conditionToAttributeNames(condition, countStart = 0) {
     return names;
 }
 function splitAndSetPropertyName(propertyName, names, countStart) {
-    return propertyName.split(".").forEach((prop) => (names["#p" + (Object.keys(names).length + countStart)] = prop));
+    return propertyName
+        .split(".")
+        .forEach((prop) => (names["#p" + (Object.keys(names).length + countStart).toString()] = prop));
 }

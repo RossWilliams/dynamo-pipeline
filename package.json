@@ -5,10 +5,9 @@
   "main": "lib/index.js",
   "module": "esm/index.js",
   "exports": {
-    ".": {
-      "require": "./lib/index.js",
-      "default": "./esm/index.js"
-    }
+    "import": "./esm/index.js",
+    "require": "./lib/index.js",
+    "default": "./esm/index.js"
   },
   "files": [
     "lib",
