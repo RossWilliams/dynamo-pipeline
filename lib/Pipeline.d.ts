@@ -46,7 +46,9 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
     buildUpdateRequest(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
         condition?: ConditionExpression;
         returnType?: UpdateReturnValues;
-    }): DocumentClient.UpdateItemInput;
+    }): DocumentClient.UpdateItemInput & {
+        UpdateExpression: string;
+    };
     update<T extends DocumentClient.AttributeMap>(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
         condition?: ConditionExpression;
         returnType?: UpdateReturnValues;
