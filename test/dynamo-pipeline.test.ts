@@ -507,7 +507,7 @@ describe("Dynamo Pipeline", () => {
 
           expect(result2).toStrictEqual(null);
         },
-        [{ data: { Attributes: { other: 2 } } }, { data: { Attributes: { other: 3 } } }]
+        [{ data: { Attributes: { other: 2 } } }, { data: undefined }]
       )
     );
 
@@ -1430,7 +1430,7 @@ describe("Dynamo Pipeline", () => {
             .all();
           expect(result.length).toEqual(2);
         },
-        { data: { Responses: [{ Item: items.slice(0, 2) }] } }
+        { data: { Responses: [{ Item: items[0] }, { Item: items[1] }] } }
       )
     );
   });
