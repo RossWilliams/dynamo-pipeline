@@ -32,6 +32,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         writeBatchSize?: number;
     });
     static sortKey: (...args: SortArgs) => QueryTemplate;
+    sortKey: (...args: SortArgs) => QueryTemplate;
     withReadBuffer(readBuffer: number): this;
     withReadBatchSize(readBatchSize: number): this;
     query<ReturnType = DocumentClient.AttributeMap>(keyConditions: KeyConditions<{

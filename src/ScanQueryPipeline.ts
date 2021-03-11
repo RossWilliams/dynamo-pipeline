@@ -70,6 +70,7 @@ export class ScanQueryPipeline<
   }
 
   static sortKey = sortKey;
+  sortKey = sortKey;
 
   withReadBuffer(readBuffer: number): this {
     if (readBuffer < 0) {
@@ -150,7 +151,7 @@ export class ScanQueryPipeline<
       }),
       ...(this.config.index && { IndexName: this.config.index }),
       ...(options.keyConditions && {
-        KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND #p1 ${skQueryToDynamoString(skValue)}` : ""),
+        KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
       }),
       ConsistentRead: Boolean(options.consistentRead),
     };

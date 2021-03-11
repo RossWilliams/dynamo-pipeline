@@ -10,6 +10,7 @@ export const sortKey = (...args) => {
 };
 export class ScanQueryPipeline {
     constructor(tableName, keys, index, config) {
+        this.sortKey = sortKey;
         this.config = {
             table: tableName,
             readBuffer: 1,
@@ -71,7 +72,7 @@ export class ScanQueryPipeline {
             }),
             ...(this.config.index && { IndexName: this.config.index }),
             ...(options.keyConditions && {
-                KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND #p1 ${skQueryToDynamoString(skValue)}` : ""),
+                KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
             }),
             ConsistentRead: Boolean(options.consistentRead),
         };

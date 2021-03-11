@@ -66,7 +66,13 @@ export function conditionToDynamo(condition, mergeCondition) {
 }
 export const pkName = (keys) => keys.pk;
 export function skQueryToDynamoString(template) {
-    return `${template[0]} :v1 ${template.length > 2 ? "AND" : ""} ${template.length > 2 ? ":v2" : ""}`;
+    const expression = template[0] === "begins_with"
+        ? { operator: template[0], property: "sk", value: template[1] }
+        : template[0] === "between"
+            ? { operator: template[0], property: "sk", start: template[2], end: template[3] }
+            : { operator: template[0], lhs: "sk", rhs: { value: template[1] } };
+    const result = conditionToConditionString(expression, 1, 1);
+    return result;
 }
 function comparisonOperator(condition, nameStart, valueStart) {
     const lhs = typeof condition.lhs === "string" ? "#p" + nameStart.toString() : "#p" + nameStart.toString();

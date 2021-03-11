@@ -505,7 +505,7 @@ describe("Dynamo Pipeline", () => {
 
           const result2 = await pipeline.update({ id: "update:1", sk: "1" }, { other: 3 });
 
-          expect(result2).toStrictEqual({ other: 3 });
+          expect(result2).toStrictEqual(null);
         },
         [{ data: { Attributes: { other: 2 } } }, { data: { Attributes: { other: 3 } } }]
       )
@@ -1428,9 +1428,9 @@ describe("Dynamo Pipeline", () => {
               { tableName: TEST_TABLE, keys: { id: "transactGet:2", sk: "2" }, keyDefinition: { pk: "id", sk: "sk" } },
             ])
             .all();
-          expect(result.length).toEqual(1);
+          expect(result.length).toEqual(2);
         },
-        { data: { Responses: [{ Item: items[0] }] } }
+        { data: { Responses: [{ Item: items.slice(0, 2) }] } }
       )
     );
   });
@@ -1500,6 +1500,52 @@ describe("Dynamo Pipeline", () => {
           expect(result.length).toEqual(100);
         },
         [{ data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } }, { data: { Items: items.slice(50, 100) } }]
+      )
+    );
+
+    test(
+      "Query can use begins_with operator",
+      mockQuery(
+        async (client, spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          type Data = { id: string; sk: string; other: string };
+          const query = pipeline.query<Data>(
+            { id: "query:1", sk: sortKey("begins_with", "1") },
+            {
+              batchSize: 100,
+              consistentRead: true,
+            }
+          );
+
+          const result = await query.all();
+          const request = spy.calls[0]![0]; // eslint-disable-line
+          expect(request.KeyConditionExpression?.indexOf("begins_with(")).toBeGreaterThan(-1);
+          expect(result.length).toEqual(11);
+        },
+        [{ data: { Items: items.slice(0, 11), LastEvaluatedKey: { N: 1 } } }]
+      )
+    );
+
+    test(
+      "Query can use BETWEEN operator",
+      mockQuery(
+        async (client, spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          type Data = { id: string; sk: string; other: string };
+          const query = pipeline.query<Data>(
+            { id: "query:1", sk: sortKey("between", "1", "2") },
+            {
+              batchSize: 100,
+              consistentRead: true,
+            }
+          );
+
+          const result = await query.all();
+          const request = spy.calls[0]![0]; // eslint-disable-line
+          expect(request.KeyConditionExpression?.indexOf("BETWEEN :v1 AND :v2")).toBeGreaterThan(-1);
+          expect(result.length).toEqual(12);
+        },
+        [{ data: { Items: items.slice(0, 12), LastEvaluatedKey: { N: 1 } } }]
       )
     );
 
@@ -1783,16 +1829,13 @@ describe("Dynamo Pipeline", () => {
           await pipeline
             .query<{ plusOne: string; evenIsOne: number }>({ id: "iterator:1" })
             .filterLazy((item, index) => {
-              console.info(index.toString() + " filter");
               return item.evenIsOne % 2 === 1;
             })
             .mapLazy((item, index) => {
-              console.info(index.toString() + " map");
               lazyCounter = index;
               return { plusOneNum: parseInt(item.plusOne, 10), evenIsOne: item.evenIsOne };
             })
             .forEach(async (item, index) => {
-              console.info(index.toString() + " forEAch");
               await new Promise((resolve, reject) => setTimeout(resolve, 1));
               expect(lazyCounter - index).toBeLessThanOrEqual(50);
               expect(item.plusOneNum % 2).toEqual(1);

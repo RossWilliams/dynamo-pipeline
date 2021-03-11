@@ -108,7 +108,15 @@ export function conditionToDynamo(
 export const pkName = (keys: KeyDefinition): string => keys.pk;
 
 export function skQueryToDynamoString(template: QueryTemplate): string {
-  return `${template[0]} :v1 ${template.length > 2 ? "AND" : ""} ${template.length > 2 ? ":v2" : ""}`;
+  const expression: ConditionExpression =
+    template[0] === "begins_with"
+      ? { operator: template[0], property: "sk", value: template[1] }
+      : template[0] === "between"
+      ? { operator: template[0], property: "sk", start: template[2], end: template[3] }
+      : { operator: template[0], lhs: "sk", rhs: { value: template[1] } };
+
+  const result = conditionToConditionString(expression, 1, 1);
+  return result;
 }
 
 function comparisonOperator(

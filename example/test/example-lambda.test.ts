@@ -51,7 +51,7 @@ describe("Example Lambda", () => {
         expect(querySpy.calls.length).toEqual(1);
         const request = querySpy.calls[0]?.[0] as DynamoDB.QueryInput;
         expect(request.IndexName).toEqual("gsi1");
-        expect(request.KeyConditionExpression?.includes("between")).toBeTruthy();
+        expect(request.KeyConditionExpression?.includes("BETWEEN")).toBeTruthy();
       },
       [
         { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
