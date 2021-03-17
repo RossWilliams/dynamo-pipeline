@@ -1,9 +1,10 @@
 import DynamoDB from "aws-sdk/clients/dynamodb";
 
 interface IteratorExecutor<T> {
-  execute(): AsyncGenerator<T[], void, void>;
+  execute(): AsyncGenerator<T[], { lastEvaluatedKey: Record<string, unknown> } | void, void>;
 }
 export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
+  private lastEvaluatedKeyHandlers: Array<(k: Record<string, unknown>) => void> = [];
   config: {
     parent: P;
     fetcher: IteratorExecutor<T>;
@@ -17,22 +18,51 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     iterator: (items: T[], index: number, parent: P, cancel: () => void) => Promise<any> | void
   ): Promise<P> {
     let index = 0;
-    const executor = this.config.fetcher.execute();
+
+    await this.iterate(this.config.fetcher, async (stride, cancel) => {
+      await iterator(stride, index, this.config.parent, cancel);
+      index += 1;
+    });
+
+    return this.config.parent;
+  }
+
+  onLastEvaluatedKey(handler: (lastEvaluatedKey: Record<string, unknown>) => void): this {
+    this.lastEvaluatedKeyHandlers.push(handler);
+    return this;
+  }
+
+  private async iterate(
+    fetcher: IteratorExecutor<T>,
+    iterator: (stride: T[], cancel: () => void) => Promise<void>
+  ): Promise<void> {
     let cancelled = false;
     const cancel = () => {
       cancelled = true;
     };
+    const executor = fetcher.execute();
 
-    for await (const stride of executor) {
-      await iterator(stride, index, this.config.parent, cancel);
-      index += 1;
-
+    while (true) {
       if (cancelled) {
         break;
       }
-    }
+      const stride = await executor.next();
+      const { value } = stride;
+      if (stride.done) {
+        this.handleDone(stride);
+        break;
+      }
 
-    return this.config.parent;
+      await iterator(value as T[], cancel);
+    }
+  }
+
+  private handleDone(iteratorResponse: { done: true; value?: void | { lastEvaluatedKey: Record<string, unknown> } }) {
+    const { value } = iteratorResponse;
+    if (value && "lastEvaluatedKey" in value) {
+      this.lastEvaluatedKeyHandlers.forEach((h) => h(value.lastEvaluatedKey));
+      this.lastEvaluatedKeyHandlers = [];
+    }
   }
 
   // when a promise is returned, all promises are resolved in the batch before processing the next batch
@@ -40,32 +70,29 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     iterator: (item: T, index: number, pipeline: P, cancel: () => void) => Promise<any> | void
   ): Promise<P> {
     let index = 0;
-    let iteratorPromises = [];
-    const executor = this.config.fetcher.execute();
+    let iteratorPromises: unknown[] = [];
     let cancelled = false;
-    const cancel = () => {
+    const cancelForEach = () => {
       cancelled = true;
     };
 
-    // eslint-disable-next-line no-labels
-    strides: for await (const stride of executor) {
+    await this.iterate(this.config.fetcher, async (stride, cancel) => {
       iteratorPromises = [];
       for (const item of stride) {
-        const iteratorResponse = iterator(item, index, this.config.parent, cancel);
+        const iteratorResponse = iterator(item, index, this.config.parent, cancelForEach);
         index += 1;
 
         if (cancelled) {
           await Promise.all(iteratorPromises);
-
-          // eslint-disable-next-line no-labels
-          break strides;
+          cancel();
+          break;
         } else if (typeof iteratorResponse === "object" && iteratorResponse instanceof Promise) {
           iteratorPromises.push(iteratorResponse);
         }
       }
 
       await Promise.all(iteratorPromises);
-    }
+    });
 
     await Promise.all(iteratorPromises);
 
@@ -75,16 +102,16 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
   async map<U>(iterator: (item: T, index: number) => U): Promise<U[]> {
     const results: U[] = [];
 
-    const executor = this.config.fetcher.execute();
     let index = 0;
 
-    for await (const stride of executor) {
+    await this.iterate(this.config.fetcher, (stride, _cancel) => {
       for (const item of stride) {
         results.push(iterator(item, index));
         index += 1;
       }
-    }
 
+      return Promise.resolve();
+    });
     return results;
   }
 
@@ -92,11 +119,20 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     const existingFetcher = this.config.fetcher;
 
     let index = 0;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const that = this;
 
     const fetcher = async function* () {
       const executor = existingFetcher.execute();
-      for await (const stride of executor) {
-        yield stride.filter((val, i) => {
+      while (true) {
+        const stride = await executor.next();
+
+        if (stride.done) {
+          that.handleDone(stride);
+          break;
+        }
+
+        yield stride.value.filter((val, i) => {
           const filtered = predicate(val, index);
           index += 1;
           return filtered;
@@ -111,11 +147,21 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     const existingFetcher = this.config.fetcher;
     let results: U[] = [];
     let index = 0;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const that = this;
 
     const fetcher = async function* () {
       const executor = existingFetcher.execute();
-      for await (const stride of executor) {
-        results = stride.map((item) => {
+
+      while (true) {
+        const stride = await executor.next();
+
+        if (stride.done) {
+          that.handleDone(stride);
+          break;
+        }
+
+        results = stride.value.map((item) => {
           const result = iterator(item, index);
           index += 1;
           return result;
@@ -136,14 +182,20 @@ export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
   async *iterator(): AsyncGenerator<T, void, void> {
     const executor = this.config.fetcher.execute();
 
-    for await (const stride of executor) {
-      for (const item of stride) {
+    while (true) {
+      const stride = await executor.next();
+      if (stride.done) {
+        this.handleDone(stride);
+        return;
+      }
+
+      for (const item of stride.value) {
         yield item;
       }
     }
   }
 
-  strideIterator(): AsyncGenerator<T[], void, void> {
+  strideIterator(): AsyncGenerator<T[], Record<string, unknown> | void, void> {
     return this.config.fetcher.execute();
   }
 }

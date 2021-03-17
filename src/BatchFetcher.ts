@@ -6,10 +6,11 @@ type BatchGetItems<KD extends KeyDefinition> = { tableName: string; keys: Key<KD
 type TransactGetItems<KD extends KeyDefinition> = { tableName: string; keys: Key<KD> }[];
 
 export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends AbstractFetcher<ReturnType> {
-  private operation: "batchGet" | "transactGet";
-  private chunks: BatchGetItems<KD>[] | TransactGetItems<KD>[];
-  private retryKeys: BatchGetItems<KD>[] | null = [];
-  private onUnprocessedKeys: ((keys: Key<KD>[]) => void) | undefined;
+  protected operation: "batchGet" | "transactGet";
+  protected chunks: BatchGetItems<KD>[] | TransactGetItems<KD>[];
+  protected retryKeys: BatchGetItems<KD>[] | null = [];
+  protected onUnprocessedKeys: ((keys: Key<KD>[]) => void) | undefined;
+  protected consistentRead = false;
 
   constructor(
     client: DocumentClient,
@@ -19,12 +20,14 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       onUnprocessedKeys?: (keys: Key<KD>[]) => void;
       batchSize: number;
       bufferCapacity: number;
+      consistentRead?: boolean;
     }
   ) {
     super(client, options);
 
     this.operation = operation;
     this.onUnprocessedKeys = options.onUnprocessedKeys;
+    this.consistentRead = Boolean(options.consistentRead);
 
     if (operation === "batchGet" && !Array.isArray(items)) {
       this.chunks = this.chunkBatchRequests(items);
@@ -51,8 +54,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     this.chunks = this.retryKeys || [];
     this.nextToken = 0;
     this.retryKeys = null;
-    return this.fetchNext(); // TODO: Bug here with Transact get fetching
-
+    return this.fetchNext();
     // TODO: Batch Get needs to be tested with chunk size of 1 and three items
   }
 
@@ -68,6 +70,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       // return the current promise if buffer at capacity, or if there are no more items to fetch
       return this.activeRequests[0] || null;
     } else if (!this.hasNextChunk()) {
+      /* istanbul ignore next */
       return null;
     }
 
@@ -77,6 +80,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       const transactionRequest = this.createTransactionRequest();
 
       if (transactionRequest === null) {
+        /* istanbul ignore next */
         return null;
       }
 
@@ -85,6 +89,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       const batchGetRequest = this.createBatchGetRequest();
 
       if (batchGetRequest === null) {
+        /* istanbul ignore next */
         return null;
       }
 
@@ -152,6 +157,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
         : undefined;
 
     if (!currentChunk) {
+      /* istanbul ignore next */
       return null;
     }
 
@@ -173,6 +179,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       typeof this.nextToken === "number" ? (this.chunks[this.nextToken] as BatchGetItems<KD> | undefined) : undefined;
 
     if (!currentChunk) {
+      /* istanbul ignore next */
       return null;
     }
     // when multiple tables are supported in a single batch
@@ -180,6 +187,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     const request = {
       RequestItems: {
         [currentChunk.tableName]: {
+          ConsistentRead: this.consistentRead,
           Keys: currentChunk.keys,
         },
       },

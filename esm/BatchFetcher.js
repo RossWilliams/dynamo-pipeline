@@ -3,8 +3,10 @@ export class BatchGetFetcher extends AbstractFetcher {
     constructor(client, operation, items, options) {
         super(client, options);
         this.retryKeys = [];
+        this.consistentRead = false;
         this.operation = operation;
         this.onUnprocessedKeys = options.onUnprocessedKeys;
+        this.consistentRead = Boolean(options.consistentRead);
         if (operation === "batchGet" && !Array.isArray(items)) {
             this.chunks = this.chunkBatchRequests(items);
         }
@@ -27,7 +29,7 @@ export class BatchGetFetcher extends AbstractFetcher {
         this.chunks = this.retryKeys || [];
         this.nextToken = 0;
         this.retryKeys = null;
-        return this.fetchNext(); // TODO: Bug here with Transact get fetching
+        return this.fetchNext();
         // TODO: Batch Get needs to be tested with chunk size of 1 and three items
     }
     fetchStrategy() {
@@ -42,12 +44,14 @@ export class BatchGetFetcher extends AbstractFetcher {
             return this.activeRequests[0] || null;
         }
         else if (!this.hasNextChunk()) {
+            /* istanbul ignore next */
             return null;
         }
         let promise = null;
         if (this.operation === "transactGet") {
             const transactionRequest = this.createTransactionRequest();
             if (transactionRequest === null) {
+                /* istanbul ignore next */
                 return null;
             }
             promise = this.documentClient.transactGet(transactionRequest).promise();
@@ -55,6 +59,7 @@ export class BatchGetFetcher extends AbstractFetcher {
         else if (this.operation === "batchGet") {
             const batchGetRequest = this.createBatchGetRequest();
             if (batchGetRequest === null) {
+                /* istanbul ignore next */
                 return null;
             }
             promise = this.documentClient.batchGet(batchGetRequest).promise();
@@ -112,6 +117,7 @@ export class BatchGetFetcher extends AbstractFetcher {
             ? this.chunks[this.nextToken]
             : undefined;
         if (!currentChunk) {
+            /* istanbul ignore next */
             return null;
         }
         const transaction = {
@@ -128,6 +134,7 @@ export class BatchGetFetcher extends AbstractFetcher {
     createBatchGetRequest() {
         const currentChunk = typeof this.nextToken === "number" ? this.chunks[this.nextToken] : undefined;
         if (!currentChunk) {
+            /* istanbul ignore next */
             return null;
         }
         // when multiple tables are supported in a single batch
@@ -135,6 +142,7 @@ export class BatchGetFetcher extends AbstractFetcher {
         const request = {
             RequestItems: {
                 [currentChunk.tableName]: {
+                    ConsistentRead: this.consistentRead,
                     Keys: currentChunk.keys,
                 },
             },

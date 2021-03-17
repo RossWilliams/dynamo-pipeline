@@ -10,14 +10,16 @@ declare type TransactGetItems<KD extends KeyDefinition> = {
     keys: Key<KD>;
 }[];
 export declare class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends AbstractFetcher<ReturnType> {
-    private operation;
-    private chunks;
-    private retryKeys;
-    private onUnprocessedKeys;
+    protected operation: "batchGet" | "transactGet";
+    protected chunks: BatchGetItems<KD>[] | TransactGetItems<KD>[];
+    protected retryKeys: BatchGetItems<KD>[] | null;
+    protected onUnprocessedKeys: ((keys: Key<KD>[]) => void) | undefined;
+    protected consistentRead: boolean;
     constructor(client: DocumentClient, operation: "batchGet" | "transactGet", items: BatchGetItems<KD> | TransactGetItems<KD>, options: {
         onUnprocessedKeys?: (keys: Key<KD>[]) => void;
         batchSize: number;
         bufferCapacity: number;
+        consistentRead?: boolean;
     });
     private chunkBatchRequests;
     retry(): Promise<void> | null;

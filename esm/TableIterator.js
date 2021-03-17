@@ -1,71 +1,99 @@
 export class TableIterator {
     constructor(fetcher, parent) {
+        this.lastEvaluatedKeyHandlers = [];
         this.config = { parent: parent, fetcher };
     }
     async forEachStride(iterator) {
         let index = 0;
-        const executor = this.config.fetcher.execute();
+        await this.iterate(this.config.fetcher, async (stride, cancel) => {
+            await iterator(stride, index, this.config.parent, cancel);
+            index += 1;
+        });
+        return this.config.parent;
+    }
+    onLastEvaluatedKey(handler) {
+        this.lastEvaluatedKeyHandlers.push(handler);
+        return this;
+    }
+    async iterate(fetcher, iterator) {
         let cancelled = false;
         const cancel = () => {
             cancelled = true;
         };
-        for await (const stride of executor) {
-            await iterator(stride, index, this.config.parent, cancel);
-            index += 1;
+        const executor = fetcher.execute();
+        while (true) {
             if (cancelled) {
                 break;
             }
+            const stride = await executor.next();
+            const { value } = stride;
+            if (stride.done) {
+                this.handleDone(stride);
+                break;
+            }
+            await iterator(value, cancel);
         }
-        return this.config.parent;
+    }
+    handleDone(iteratorResponse) {
+        const { value } = iteratorResponse;
+        if (value && "lastEvaluatedKey" in value) {
+            this.lastEvaluatedKeyHandlers.forEach((h) => h(value.lastEvaluatedKey));
+            this.lastEvaluatedKeyHandlers = [];
+        }
     }
     // when a promise is returned, all promises are resolved in the batch before processing the next batch
     async forEach(iterator) {
         let index = 0;
         let iteratorPromises = [];
-        const executor = this.config.fetcher.execute();
         let cancelled = false;
-        const cancel = () => {
+        const cancelForEach = () => {
             cancelled = true;
         };
-        // eslint-disable-next-line no-labels
-        strides: for await (const stride of executor) {
+        await this.iterate(this.config.fetcher, async (stride, cancel) => {
             iteratorPromises = [];
             for (const item of stride) {
-                const iteratorResponse = iterator(item, index, this.config.parent, cancel);
+                const iteratorResponse = iterator(item, index, this.config.parent, cancelForEach);
                 index += 1;
                 if (cancelled) {
                     await Promise.all(iteratorPromises);
-                    // eslint-disable-next-line no-labels
-                    break strides;
+                    cancel();
+                    break;
                 }
                 else if (typeof iteratorResponse === "object" && iteratorResponse instanceof Promise) {
                     iteratorPromises.push(iteratorResponse);
                 }
             }
             await Promise.all(iteratorPromises);
-        }
+        });
         await Promise.all(iteratorPromises);
         return this.config.parent;
     }
     async map(iterator) {
         const results = [];
-        const executor = this.config.fetcher.execute();
         let index = 0;
-        for await (const stride of executor) {
+        await this.iterate(this.config.fetcher, (stride, _cancel) => {
             for (const item of stride) {
                 results.push(iterator(item, index));
                 index += 1;
             }
-        }
+            return Promise.resolve();
+        });
         return results;
     }
     filterLazy(predicate) {
         const existingFetcher = this.config.fetcher;
         let index = 0;
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const that = this;
         const fetcher = async function* () {
             const executor = existingFetcher.execute();
-            for await (const stride of executor) {
-                yield stride.filter((val, i) => {
+            while (true) {
+                const stride = await executor.next();
+                if (stride.done) {
+                    that.handleDone(stride);
+                    break;
+                }
+                yield stride.value.filter((val, i) => {
                     const filtered = predicate(val, index);
                     index += 1;
                     return filtered;
@@ -78,10 +106,17 @@ export class TableIterator {
         const existingFetcher = this.config.fetcher;
         let results = [];
         let index = 0;
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const that = this;
         const fetcher = async function* () {
             const executor = existingFetcher.execute();
-            for await (const stride of executor) {
-                results = stride.map((item) => {
+            while (true) {
+                const stride = await executor.next();
+                if (stride.done) {
+                    that.handleDone(stride);
+                    break;
+                }
+                results = stride.value.map((item) => {
                     const result = iterator(item, index);
                     index += 1;
                     return result;
@@ -97,8 +132,13 @@ export class TableIterator {
     }
     async *iterator() {
         const executor = this.config.fetcher.execute();
-        for await (const stride of executor) {
-            for (const item of stride) {
+        while (true) {
+            const stride = await executor.next();
+            if (stride.done) {
+                this.handleDone(stride);
+                return;
+            }
+            for (const item of stride.value) {
                 yield item;
             }
         }

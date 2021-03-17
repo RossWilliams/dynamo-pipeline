@@ -770,42 +770,24 @@ describe("Dynamo Pipeline", () => {
             },
           });
 
-          const result: Data[] = await scanner.all();
+          let nextToken: Record<string, unknown> | undefined;
+
+          const result: Data[] = await scanner.onLastEvaluatedKey((i) => (nextToken = i)).all();
           expect(result.length).toEqual(80);
           if (!TEST_WITH_DYNAMO) {
             // filter makes dynamo target unstable in number of calls
             expect(spy.calls.length).toEqual(2);
           }
+
+          expect(nextToken).toBeDefined();
+          expect(nextToken?.id).toBeDefined();
+          expect(nextToken?.sk).toBeDefined();
         },
-        [{ data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } }, { data: { Items: items.slice(50, 100) } }]
-      )
-    );
-
-    test(
-      "Scan will limit the amount of items returned",
-      mockScan(
-        async (client, spy) => {
-          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          type Data = { id: string; sk: string; other: string };
-
-          const scanner = pipeline.scan<Data>({
-            batchSize: 50,
-            limit: 80,
-            filters: {
-              property: "id",
-              operator: "begins_with",
-              value: "scan:",
-            },
-          });
-
-          const result: Data[] = await scanner.all();
-          expect(result.length).toEqual(80);
-          if (!TEST_WITH_DYNAMO) {
-            // filter makes dynamo target unstable in number of calls
-            expect(spy.calls.length).toEqual(2);
-          }
-        },
-        [{ data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } }, { data: { Items: items.slice(50, 100) } }]
+        [
+          { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items.slice(50, 90), LastEvaluatedKey: { id: "1", sk: "2" } } },
+          { data: { Items: items.slice(90, 100) } },
+        ]
       )
     );
 
@@ -1040,7 +1022,7 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "Scan processing in a forEach which returns false stops processing and fetching",
+      "Scan processing in a forEach which calls cancel stops processing and fetching",
       alwaysMockScan(
         async (client, spy) => {
           const readBuffer = 5;
@@ -1361,6 +1343,24 @@ describe("Dynamo Pipeline", () => {
         10
       )
     );
+
+    test(
+      "Get handles receiving an empty response",
+      alwaysMockBatchGet(
+        async (client, spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
+
+          const result = await pipeline
+            .getItems<{ other: string }>(items.slice(0, 20), { batchSize: 20 })
+            .all();
+
+          expect(spy.calls.length).toEqual(1);
+          expect(result.length).toEqual(0);
+        },
+        [{ data: { Responses: { [TEST_TABLE]: [] } } }, { data: { Responses: {} } }],
+        10
+      )
+    );
   });
 
   describe("Transact Get", () => {
@@ -1460,14 +1460,41 @@ describe("Dynamo Pipeline", () => {
         .join(""),
     }));
 
+    const items3 = new Array(5000).fill(0).map((_, i) => ({
+      id: "query:3",
+      sk: i.toString(),
+      gsi1pk: "1",
+      gsi1sk: "1",
+      other: new Array(50)
+        .fill(0)
+        .map(() => Math.random().toString(36).substring(2, 15))
+        .join(""),
+    }));
+
     beforeAll(
       mockBatchWrite(async (client, _spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
         await pipeline.putItems(items);
         await pipeline.putItems(items2);
+        await pipeline.putItems(items3);
         expect(pipeline.unprocessedItems.length).toEqual(0);
       })
+    );
+
+    test(
+      "Query can use a gsi with more than 1MB of the same pk and sk",
+      mockQuery(
+        async (client) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          const result = await pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsisk" }).query({ gsi1pk: "1" }).all();
+          expect(result.length).toEqual(5000);
+        },
+        [
+          { data: { Items: items3.slice(0, 2500), LastEvaluatedKey: { N: 1 } } },
+          { data: { Items: items3.slice(2500, 5000) } },
+        ]
+      )
     );
 
     test(

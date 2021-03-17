@@ -78,7 +78,8 @@
     "collectCoverageFrom": [
       "src/**/*.ts",
       "!src/mocks/*.ts"
-    ]
+    ],
+   "testTimeout": 90000
   },
   "prettier": {
     "printWidth": 120,

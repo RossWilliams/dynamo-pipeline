@@ -1,4 +1,4 @@
-import { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
 export declare abstract class AbstractFetcher<T> {
     protected activeRequests: Promise<any>[];
     protected bufferSize: number;
@@ -6,7 +6,7 @@ export declare abstract class AbstractFetcher<T> {
     protected batchSize: number;
     protected limit?: number;
     protected totalReturned: number;
-    protected nextToken: number | Key | null;
+    protected nextToken: number | Record<string, unknown> | null;
     protected documentClient: DocumentClient;
     protected results: T[];
     protected errors: Error | null;
@@ -19,7 +19,9 @@ export declare abstract class AbstractFetcher<T> {
     abstract processResult(data: Record<string, any>): void;
     protected fetchNext(): Promise<void> | null;
     private setupFetchProcessor;
-    execute(): AsyncGenerator<T[], void, void>;
+    execute(): AsyncGenerator<T[], {
+        lastEvaluatedKey: Record<string, unknown>;
+    } | void, void>;
     getResultBatch(batchSize: number): T[];
     processError(e: Error): void;
     hasDataReady(): boolean;

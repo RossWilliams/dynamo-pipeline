@@ -85,7 +85,7 @@ export class Pipeline<
 
   getItems<T = DocumentClient.AttributeMap>(
     keys: Key<KD>[],
-    options?: { batchSize?: number; bufferCapacity?: number }
+    options?: { batchSize?: number; bufferCapacity?: number; consistentRead?: boolean }
   ): TableIterator<T, this> {
     const handleUnprocessed = (keys: Key<KD>[]) => {
       this.unprocessedItems.push(...keys);

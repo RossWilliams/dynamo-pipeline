@@ -7,7 +7,7 @@ export abstract class AbstractFetcher<T> {
   protected batchSize: number;
   protected limit?: number;
   protected totalReturned = 0;
-  protected nextToken: number | Key | null;
+  protected nextToken: number | Record<string, unknown> | null;
   protected documentClient: DocumentClient;
   protected results: T[] = [];
   protected errors: Error | null = null;
@@ -67,7 +67,7 @@ export abstract class AbstractFetcher<T> {
   }
 
   // Entry point.
-  async *execute(): AsyncGenerator<T[], void, void> {
+  async *execute(): AsyncGenerator<T[], { lastEvaluatedKey: Record<string, unknown> } | void, void> {
     let count = 0;
     do {
       if (this.errors) {
@@ -94,6 +94,9 @@ export abstract class AbstractFetcher<T> {
       yield batch;
 
       if (this.limit && count >= this.limit) {
+        if (typeof this.nextToken === "object" && this.nextToken !== null) {
+          return { lastEvaluatedKey: this.nextToken };
+        }
         return;
       }
     } while (!this.isDone());

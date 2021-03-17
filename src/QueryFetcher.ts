@@ -49,6 +49,7 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
 
   processResult(data: DocumentClient.ScanOutput | DocumentClient.QueryOutput | void): void {
     this.nextToken = (data && data.LastEvaluatedKey) || null;
+
     if (data && data.Items) {
       this.totalReturned += data.Items.length;
       this.results.push(...(data.Items as T[]));

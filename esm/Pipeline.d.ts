@@ -35,6 +35,7 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
     getItems<T = DocumentClient.AttributeMap>(keys: Key<KD>[], options?: {
         batchSize?: number;
         bufferCapacity?: number;
+        consistentRead?: boolean;
     }): TableIterator<T, this>;
     putItems<I extends Key<KD>>(items: I[], options?: {
         bufferCapacity?: number;
