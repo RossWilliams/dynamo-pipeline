@@ -156,7 +156,7 @@ export class ScanQueryPipeline<
         KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
       }),
       ConsistentRead: Boolean(options.consistentRead),
-      ScanIndexForward: Boolean(options.sortDescending),
+      ScanIndexForward: Boolean(!options.sortDescending),
     };
 
     const [skVal1, skVal2] =
