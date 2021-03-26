@@ -75,6 +75,7 @@ export class ScanQueryPipeline {
                 KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
             }),
             ConsistentRead: Boolean(options.consistentRead),
+            ScanIndexForward: Boolean(!options.sortDescending),
         };
         const [skVal1, skVal2] = (skValue === null || skValue === void 0 ? void 0 : skValue.length) === 4 ? [skValue[2], skValue[3]] : (skValue === null || skValue === void 0 ? void 0 : skValue.length) === 2 ? [skValue[1], null] : [null, null];
         const keySubstitues = {

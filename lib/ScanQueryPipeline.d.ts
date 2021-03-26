@@ -39,6 +39,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         pk: PK;
         sk: SK;
     }>, options?: {
+        sortDescending?: true;
         batchSize?: number;
         bufferCapacity?: number;
         limit?: number;
