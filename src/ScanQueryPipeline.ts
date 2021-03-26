@@ -91,6 +91,7 @@ export class ScanQueryPipeline<
   query<ReturnType = DocumentClient.AttributeMap>(
     keyConditions: KeyConditions<{ pk: PK; sk: SK }>,
     options?: {
+      sortDescending?: true;
       batchSize?: number;
       bufferCapacity?: number;
       limit?: number;
@@ -135,6 +136,7 @@ export class ScanQueryPipeline<
     filters?: ConditionExpression;
     bufferCapacity?: number;
     consistentRead?: boolean;
+    sortDescending?: true;
   }): DocumentClient.ScanInput | DocumentClient.QueryInput {
     const pkName = this.config.keys.pk;
     const skName = this.config.keys.sk;
@@ -154,6 +156,7 @@ export class ScanQueryPipeline<
         KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
       }),
       ConsistentRead: Boolean(options.consistentRead),
+      ScanIndexForward: Boolean(options.sortDescending),
     };
 
     const [skVal1, skVal2] =

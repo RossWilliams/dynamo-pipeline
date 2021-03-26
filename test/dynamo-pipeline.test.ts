@@ -1713,6 +1713,25 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
+      "Query can sort results descending",
+      mockQuery(
+        async (client, spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+          const query = pipeline.query<{ id: string; sk: string }>(
+            { id: "query:1" },
+            { limit: 50, sortDescending: true }
+          );
+
+          const result = await query.all();
+          expect(result.length).toEqual(50);
+          expect(spy.calls.length).toEqual(1);
+          expect(result.find((r) => r.sk === "48")).not.toBeDefined();
+        },
+        [{ data: { Items: items.slice(50, 100).concat([]).reverse() } }]
+      )
+    );
+
+    test(
       "Query can use between operator to receive a subselection",
       mockQuery(
         async (client, spy) => {
