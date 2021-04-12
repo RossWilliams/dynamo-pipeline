@@ -116,6 +116,7 @@ export class ScanQueryPipeline<
     bufferCapacity?: number;
     limit?: number;
     filters?: ConditionExpression;
+    consistentRead?: boolean;
     nextToken?: Key<KD>;
   }): TableIterator<ReturnType, this> {
     const request = this.buildQueryScanRequest(options ?? {});

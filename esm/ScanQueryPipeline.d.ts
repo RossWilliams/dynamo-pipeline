@@ -52,6 +52,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         bufferCapacity?: number;
         limit?: number;
         filters?: ConditionExpression;
+        consistentRead?: boolean;
         nextToken?: Key<KD>;
     }): TableIterator<ReturnType, this>;
     private buildQueryScanRequest;
