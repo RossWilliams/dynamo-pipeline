@@ -1,6 +1,7 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Key, KeyDefinition } from "./types";
-import { AbstractFetcher } from "./AbstractFetcher";
+import { AbstractFetcher, FetchResponse } from "./AbstractFetcher";
+import { TokenBucket } from "./TokenBucket";
 
 type BatchGetItems<KD extends KeyDefinition> = { tableName: string; keys: Key<KD>[] };
 type TransactGetItems<KD extends KeyDefinition> = { tableName: string; keys: Key<KD> }[];
@@ -21,6 +22,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       batchSize: number;
       bufferCapacity: number;
       consistentRead?: boolean;
+      tokenBucket?: TokenBucket;
     }
   ) {
     super(client, options);
@@ -50,7 +52,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     return chunks;
   }
 
-  retry(): Promise<void> | null {
+  retry(): Promise<FetchResponse | void> | null {
     this.chunks = this.retryKeys || [];
     this.nextToken = 0;
     this.retryKeys = null;
@@ -58,7 +60,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     // TODO: Batch Get needs to be tested with chunk size of 1 and three items
   }
 
-  fetchStrategy(): Promise<void> | null {
+  fetchStrategy(): Promise<FetchResponse | void> | null {
     if (this.retryKeys && this.retryKeys.length && this.nextToken === null && !this.isActive()) {
       // if finished fetching initial requests, begin to process the retry keys
       return this.retry();
@@ -161,13 +163,14 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
       return null;
     }
 
-    const transaction = {
+    const transaction: DocumentClient.TransactGetItemsInput = {
       TransactItems: currentChunk.map((item) => ({
         Get: {
           Key: item.keys,
           TableName: item.tableName,
         },
       })),
+      ...(this.tokenBucket && { ReturnConsumedCapacity: "TOTAL" }),
     };
 
     return transaction;
@@ -184,13 +187,14 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     }
     // when multiple tables are supported in a single batch
     // switch to items.reduce(acc, curr) => ({...acc, [curr.tableName]: curr.keyItems,}),{})
-    const request = {
+    const request: DocumentClient.BatchGetItemInput = {
       RequestItems: {
         [currentChunk.tableName]: {
           ConsistentRead: this.consistentRead,
           Keys: currentChunk.keys,
         },
       },
+      ...(this.tokenBucket && { ReturnConsumedCapacity: "TOTAL" }),
     };
     return request;
   }

@@ -1,11 +1,21 @@
 import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { BatchWriter } from "./BatchWriter";
-import { conditionToDynamo, pkName } from "./helpers";
+import { conditionToDynamo } from "./helpers";
 import { ScanQueryPipeline } from "./ScanQueryPipeline";
+import { TokenBucket } from "./TokenBucket";
 export class Pipeline extends ScanQueryPipeline {
     constructor(tableName, keys, config) {
         super(tableName, keys, undefined, config);
+        this.unprocessedItems = [];
+        this.config = {
+            ...this.createConfig(tableName, undefined, keys, config),
+            writeBuffer: (config === null || config === void 0 ? void 0 : config.writeBuffer) || 3,
+            writeBatchSize: (config === null || config === void 0 ? void 0 : config.writeBatchSize) || 25,
+        };
+        if (config === null || config === void 0 ? void 0 : config.writeCapacityUnitLimit) {
+            this.writeTokenBucket = new TokenBucket(tableName, config.writeCapacityUnitLimit);
+        }
         return this;
     }
     withWriteBuffer(writeBuffer = 30) {
@@ -40,6 +50,7 @@ export class Pipeline extends ScanQueryPipeline {
         return new TableIterator(new BatchGetFetcher(this.config.client, "transactGet", transactGetItems, {
             bufferCapacity: this.config.readBuffer,
             batchSize: this.config.readBatchSize,
+            tokenBucket: this.readTokenBucket,
             ...options,
         }), this);
     }
@@ -60,6 +71,7 @@ export class Pipeline extends ScanQueryPipeline {
             batchSize: this.config.readBatchSize,
             bufferCapacity: this.config.readBuffer,
             onUnprocessedKeys: handleUnprocessed,
+            tokenBucket: this.readTokenBucket,
             ...options,
         }), this);
     }
@@ -105,7 +117,7 @@ export class Pipeline extends ScanQueryPipeline {
     putIfNotExists(item) {
         const pkCondition = {
             operator: "attribute_not_exists",
-            property: pkName(this.config.keys),
+            property: this.config.keys.pk,
         };
         return this.put(item, pkCondition);
     }
@@ -175,7 +187,7 @@ export class Pipeline extends ScanQueryPipeline {
         else {
             const compiledCondition = conditionToDynamo({
                 operator: "attribute_exists",
-                property: pkName(this.config.keys),
+                property: this.config.keys.pk,
             });
             request.ConditionExpression = compiledCondition.Condition;
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;

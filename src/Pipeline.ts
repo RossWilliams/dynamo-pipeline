@@ -4,26 +4,51 @@ import { KeyDefinition, ConditionExpression, UpdateReturnValues, PrimitiveType, 
 import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { BatchWriter } from "./BatchWriter";
-import { conditionToDynamo, pkName } from "./helpers";
-import { ScanQueryPipeline, sortKey } from "./ScanQueryPipeline";
+import { conditionToDynamo } from "./helpers";
+import { ScanQueryConstructorConfig, ScanQueryPipeline } from "./ScanQueryPipeline";
+import { TokenBucket } from "./TokenBucket";
 
+interface InterfaceConfig<KD> {
+  client: DocumentClient;
+  table: string;
+  keys: KD;
+  index?: string;
+  readBuffer: number;
+  writeBuffer: number;
+  readBatchSize: number;
+  writeBatchSize: number;
+}
+
+interface PipelineConstructorConfig extends ScanQueryConstructorConfig {
+  client?: DocumentClient;
+  readBuffer?: number;
+  writeBuffer?: number;
+  readBatchSize?: number;
+  writeBatchSize?: number;
+  writeCapacityUnitLimit?: number;
+  readCapacityUnitLimit?: number;
+}
 export class Pipeline<
   PK extends string,
   SK extends string | undefined = undefined,
   KD extends { pk: PK; sk: SK } = { pk: PK; sk: SK }
 > extends ScanQueryPipeline<PK, SK, KD> {
-  constructor(
-    tableName: string,
-    keys: { pk: PK; sk?: SK },
-    config?: {
-      client?: DocumentClient;
-      readBuffer?: number;
-      writeBuffer?: number;
-      readBatchSize?: number;
-      writeBatchSize?: number;
-    }
-  ) {
+  private writeTokenBucket?: TokenBucket;
+  public config: InterfaceConfig<KD>;
+  public unprocessedItems: Key<KD>[] = [];
+
+  constructor(tableName: string, keys: { pk: PK; sk?: SK }, config?: PipelineConstructorConfig) {
     super(tableName, keys, undefined, config);
+
+    this.config = {
+      ...this.createConfig(tableName, undefined, (keys as unknown) as KD, config),
+      writeBuffer: config?.writeBuffer || 3,
+      writeBatchSize: config?.writeBatchSize || 25,
+    };
+
+    if (config?.writeCapacityUnitLimit) {
+      this.writeTokenBucket = new TokenBucket(tableName, config.writeCapacityUnitLimit);
+    }
 
     return this;
   }
@@ -77,6 +102,7 @@ export class Pipeline<
       new BatchGetFetcher<T, KD>(this.config.client, "transactGet", transactGetItems, {
         bufferCapacity: this.config.readBuffer,
         batchSize: this.config.readBatchSize,
+        tokenBucket: this.readTokenBucket,
         ...options,
       }),
       this
@@ -109,6 +135,7 @@ export class Pipeline<
         batchSize: this.config.readBatchSize,
         bufferCapacity: this.config.readBuffer,
         onUnprocessedKeys: handleUnprocessed,
+        tokenBucket: this.readTokenBucket,
         ...options,
       }),
       this
@@ -171,7 +198,7 @@ export class Pipeline<
   putIfNotExists<Item extends Key<KD>>(item: Item): Promise<Pipeline<PK, SK>> {
     const pkCondition: ConditionExpression = {
       operator: "attribute_not_exists",
-      property: pkName(this.config.keys),
+      property: this.config.keys.pk,
     };
 
     return this.put(item, pkCondition);
@@ -277,7 +304,7 @@ export class Pipeline<
     } else {
       const compiledCondition = conditionToDynamo({
         operator: "attribute_exists",
-        property: pkName(this.config.keys),
+        property: this.config.keys.pk,
       });
       request.ConditionExpression = compiledCondition.Condition;
       request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;

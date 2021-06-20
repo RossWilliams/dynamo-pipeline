@@ -23,6 +23,7 @@
     "test": "NODE_ENV=test jest",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:dynamodb": "TEST_WITH_DYNAMO=true NODE_ENV=test jest",
+    "types": "tsc --noEmit",
     "lint": "eslint './{src,test}/*.ts' --cache --cache-location '.buildcache/' --fix --ext .ts",
     "format": "prettier --write ./{src,test}/*.ts",
     "prepare": "husky install"
@@ -79,7 +80,7 @@
       "src/**/*.ts",
       "!src/mocks/*.ts"
     ],
-    "testTimeout": 90000
+    "testTimeout": 300000
   },
   "prettier": {
     "printWidth": 120,

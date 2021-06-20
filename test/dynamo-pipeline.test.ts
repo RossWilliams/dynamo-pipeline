@@ -40,7 +40,7 @@ describe("Dynamo Pipeline", () => {
 
   afterAll(async () => {
     if (TEST_WITH_DYNAMO) {
-      const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" });
+      const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { readCapacityUnitLimit: 50 });
       await pipeline.scan<{ id: string; sk: string }>().forEach((item) => pipeline.delete(item));
     }
   });
@@ -72,6 +72,159 @@ describe("Dynamo Pipeline", () => {
     expect(index.config.readBatchSize).toEqual(34);
     expect(() => index.withReadBuffer(-1)).toThrow();
     expect(() => index.withReadBatchSize(0)).toThrow();
+  });
+
+  describe("Read Token Bucket", () => {
+    const items = new Array(300).fill(0).map((_, i) => ({
+      id: "readToken",
+
+      sk: i.toString(),
+      plusOne: (i + 1).toString(),
+      other: new Array(1200)
+        .fill(0)
+        .map(() => Math.random().toString(36).substring(2, 15))
+        .join(""),
+    }));
+
+    beforeAll(
+      mockBatchWrite(async (client, _spy) => {
+        const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
+
+        await pipeline.putItems(items);
+        expect(pipeline.unprocessedItems.length).toEqual(0);
+      })
+    );
+
+    test(
+      "When read tokens are not exhausted the iterator will auto-fetch the next result in the background",
+      mockQuery(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client, readCapacityUnitLimit: 200 });
+
+          const iterator = pipeline.query({ id: "readToken" }).strideIterator();
+          await iterator.next();
+          await iterator.return();
+
+          expect(_spy.calls.length).toEqual(2);
+        },
+        [
+          {
+            data: {
+              Items: items.slice(0, 50),
+              LastEvaluatedKey: { N: 1 },
+              ConsumedCapacity: { CapacityUnits: 128 },
+            },
+          },
+          { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
+        ]
+      )
+    );
+
+    test(
+      "When read tokens are exhausted the iterator will not auto-fetch the next result in the background",
+      mockQuery(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client, readCapacityUnitLimit: 10 });
+
+          const iterator = pipeline.query({ id: "readToken" }).strideIterator();
+          await iterator.next();
+          await iterator.return();
+
+          expect(_spy.calls.length).toEqual(1);
+        },
+        [
+          {
+            data: {
+              Items: items.slice(0, 50),
+              LastEvaluatedKey: { N: 1 },
+              ConsumedCapacity: {
+                CapacityUnits: 162,
+              },
+            },
+          },
+          { data: { Items: items.slice(50, 100) } },
+        ]
+      )
+    );
+
+    test(
+      "Requests continue after tokens are exhausted and the token bucket is refilled",
+      mockQuery(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client, readCapacityUnitLimit: 150 });
+
+          const result = await pipeline.query({ id: "readToken" }).all();
+
+          expect(_spy.calls.length).toEqual(4);
+          expect(result.length).toEqual(300);
+        },
+        [
+          {
+            data: {
+              Items: items.slice(0, 81),
+              LastEvaluatedKey: { N: 1 },
+              ConsumedCapacity: {
+                CapacityUnits: 128,
+              },
+            },
+          },
+          {
+            data: {
+              Items: items.slice(81, 162),
+              LastEvaluatedKey: { N: 2 },
+              ConsumedCapacity: {
+                CapacityUnits: 128,
+              },
+            },
+          },
+          {
+            data: {
+              Items: items.slice(162, 243),
+              LastEvaluatedKey: { N: 4 },
+              ConsumedCapacity: {
+                CapacityUnits: 128,
+              },
+            },
+          },
+          { data: { Items: items.slice(243, 300) } },
+        ]
+      )
+    );
+
+    test(
+      "For Batch operations when read tokens are exhausted the iterator will not auto-fetch the next result in the background",
+      mockBatchGet(
+        async (client, _spy) => {
+          const pipeline = new Pipeline(
+            TEST_TABLE,
+            { pk: "id", sk: "sk" },
+            { client, readCapacityUnitLimit: 100 }
+          ).withReadBuffer(1);
+
+          const iterator = pipeline.getItems<{ other: string }>(items.slice(0, 150)).strideIterator();
+          await iterator.next();
+          await iterator.next();
+          await iterator.return();
+
+          expect(_spy.calls.length).toEqual(2);
+        },
+        [
+          {
+            data: {
+              Responses: { [TEST_TABLE]: items.slice(0, 100) },
+              ConsumedCapacity: [
+                {
+                  TableName: TEST_TABLE,
+                  CapacityUnits: 128,
+                },
+              ],
+            },
+          },
+          { data: { Responses: { [TEST_TABLE]: items.slice(100, 200) } } },
+          { data: { Responses: { [TEST_TABLE]: items.slice(200, 300) } } },
+        ]
+      )
+    );
   });
 
   describe("Put Item", () => {
@@ -700,7 +853,6 @@ describe("Dynamo Pipeline", () => {
   describe("Scan", () => {
     const items = new Array(100).fill(0).map((_, i) => ({
       id: "scan:" + i.toString(),
-
       sk: i.toString(),
       ...((i === 1 || i === 2) && {
         gsi1pk: "scanIndex:1",
@@ -814,7 +966,7 @@ describe("Dynamo Pipeline", () => {
             processing = true;
           });
 
-          expect(spy.calls.length).toEqual(2);
+          expect(spy.calls.length).toBeGreaterThanOrEqual(2);
         },
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
@@ -1443,6 +1595,8 @@ describe("Dynamo Pipeline", () => {
       gsi1sk: (i + 1).toString(),
       plusOne: (i + 1).toString(),
       evenIsOne: i % 2 === 0 ? 1 : 0,
+      fortyTwo: 42,
+      mapType: { stringEvenOdd: i % 2 === 0 ? "even" : "odd" },
       other: new Array(250)
         .fill(0)
         .map(() => Math.random().toString(36).substring(2, 15))
@@ -1589,7 +1743,7 @@ describe("Dynamo Pipeline", () => {
               batchSize: 50,
               consistentRead: true,
               filters: {
-                lhs: { lhs: "evenIsOne", operator: "=", rhs: { value: 1 } },
+                lhs: { lhs: "mapType.stringEvenOdd", operator: "=", rhs: { value: "even" } },
                 logical: "AND",
                 rhs: {
                   lhs: {
@@ -1604,10 +1758,10 @@ describe("Dynamo Pipeline", () => {
                     lhs: {
                       lhs: {
                         function: "size" as const,
-                        property: "other",
+                        property: "mapType.stringEvenOdd",
                       },
-                      operator: ">",
-                      rhs: { value: 42 },
+                      operator: "<",
+                      rhs: { property: "fortyTwo" },
                     },
                     logical: "AND",
                     rhs: {

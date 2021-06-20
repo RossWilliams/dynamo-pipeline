@@ -1,4 +1,11 @@
-import { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
+import DynamoDB, { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
+import { TokenBucket } from "./TokenBucket";
+
+export type FetchResponse =
+  | DocumentClient.QueryOutput
+  | DocumentClient.ScanOutput
+  | DocumentClient.BatchGetItemOutput
+  | DocumentClient.TransactGetItemsOutput;
 
 export abstract class AbstractFetcher<T> {
   protected activeRequests: Promise<any>[] = [];
@@ -12,15 +19,19 @@ export abstract class AbstractFetcher<T> {
   protected results: T[] = [];
   protected errors: Error | null = null;
 
+  protected tokenBucket?: TokenBucket;
+
   constructor(
     client: DocumentClient,
     options: {
       batchSize: number;
       bufferCapacity: number;
       limit?: number;
+      tokenBucket?: TokenBucket;
     }
   ) {
     this.documentClient = client;
+    this.tokenBucket = options.tokenBucket;
     this.bufferCapacity = options.bufferCapacity;
     this.batchSize = options.batchSize;
     this.limit = options.limit;
@@ -32,17 +43,29 @@ export abstract class AbstractFetcher<T> {
   2. Perform DocumentClient operation call
   3. Set next token.
   */
-  abstract fetchStrategy(): Promise<void> | null;
+  abstract fetchStrategy(): Promise<FetchResponse | void> | null;
   /*
   1. Receive data from DocumentClient operation call in fetch strategy
   2. Set results and totalReturned.
   3. Handle API errors
   */
-  abstract processResult(data: Record<string, any>): void;
+  abstract processResult(data: FetchResponse | void): void;
 
   // take in a promise to allow recursive calls,
   // batch fetcher can immediately create many requests
-  protected fetchNext(): Promise<void> | null {
+  protected fetchNext(): Promise<FetchResponse | void> | null {
+    const { tokenBucket } = this;
+    const tokensAvailable = tokenBucket?.peak() ?? 0;
+    if (typeof tokenBucket !== "undefined" && tokensAvailable < 0) {
+      const waitTimeMs = Math.floor((Math.abs(tokensAvailable) / tokenBucket.fillRatePerSecond) * 1000);
+
+      return new Promise((resolve, reject) =>
+        setTimeout(() => {
+          resolve();
+        }, waitTimeMs)
+      );
+    }
+
     const fetchResponse = this.fetchStrategy();
 
     if (fetchResponse instanceof Promise && !this.activeRequests.includes(fetchResponse)) {
@@ -52,10 +75,31 @@ export abstract class AbstractFetcher<T> {
     return fetchResponse;
   }
 
-  private setupFetchProcessor(promise: Promise<any>): Promise<void> {
+  private removeCapacityFromTokenBucket(data: FetchResponse | void) {
+    if (typeof data === "object" && data?.ConsumedCapacity) {
+      // Batch get or Transact Get
+      if (Array.isArray(data.ConsumedCapacity)) {
+        // we only track the table associated with the pipeline
+        data.ConsumedCapacity.filter((cc) => cc.TableName === this.tokenBucket?.tableOrIndexName).forEach((cc) => {
+          this.tokenBucket?.take(cc.ReadCapacityUnits || cc.CapacityUnits || 0, true);
+        });
+      } else {
+        this.tokenBucket?.take(
+          data.ConsumedCapacity.ReadCapacityUnits || data.ConsumedCapacity.CapacityUnits || 0,
+          true
+        );
+      }
+    }
+  }
+
+  private setupFetchProcessor(promise: Promise<FetchResponse | void>): Promise<FetchResponse | void> {
     this.activeRequests.push(promise);
     this.bufferSize += 1;
     return promise
+      .then((data) => {
+        this.removeCapacityFromTokenBucket(data);
+        return data;
+      })
       .then((data) => {
         this.activeRequests = this.activeRequests.filter((r) => r !== promise);
         this.processResult(data);
@@ -74,6 +118,7 @@ export abstract class AbstractFetcher<T> {
         return Promise.reject(this.errors);
       }
 
+      // if there is no data to return, wait for data to exist
       if (!this.hasDataReady()) {
         await this.fetchNext();
       }
@@ -91,7 +136,9 @@ export abstract class AbstractFetcher<T> {
         void this.fetchNext();
       }
 
-      yield batch;
+      if (batch.length) {
+        yield batch;
+      }
 
       if (this.limit && count >= this.limit) {
         if (typeof this.nextToken === "object" && this.nextToken !== null) {

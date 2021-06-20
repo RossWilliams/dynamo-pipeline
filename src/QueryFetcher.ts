@@ -1,5 +1,6 @@
 import { AbstractFetcher } from "./AbstractFetcher";
 import { ScanInput, QueryInput, DocumentClient } from "aws-sdk/clients/dynamodb";
+import { TokenBucket } from "./TokenBucket";
 
 export class QueryFetcher<T> extends AbstractFetcher<T> {
   private request: ScanInput | QueryInput;
@@ -14,6 +15,7 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
       bufferCapacity: number;
       limit?: number;
       nextToken?: DocumentClient.Key;
+      tokenBucket?: TokenBucket;
     }
   ) {
     super(client, options);
@@ -36,10 +38,11 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
       return this.activeRequests[0] || null;
     }
 
-    const request = {
+    const request: DocumentClient.ScanInput | DocumentClient.QueryInput = {
       ...(this.request.Limit && { Limit: this.request.Limit - this.totalReturned }),
       ...this.request,
       ...(Boolean(this.nextToken) && typeof this.nextToken === "object" && { ExclusiveStartKey: this.nextToken }),
+      ...(this.tokenBucket && { ReturnConsumedCapacity: "INDEXES" }),
     };
 
     const promise = this.documentClient[this.operation](request).promise();

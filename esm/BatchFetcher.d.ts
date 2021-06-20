@@ -1,6 +1,7 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Key, KeyDefinition } from "./types";
-import { AbstractFetcher } from "./AbstractFetcher";
+import { AbstractFetcher, FetchResponse } from "./AbstractFetcher";
+import { TokenBucket } from "./TokenBucket";
 declare type BatchGetItems<KD extends KeyDefinition> = {
     tableName: string;
     keys: Key<KD>[];
@@ -20,10 +21,11 @@ export declare class BatchGetFetcher<ReturnType, KD extends KeyDefinition> exten
         batchSize: number;
         bufferCapacity: number;
         consistentRead?: boolean;
+        tokenBucket?: TokenBucket;
     });
     private chunkBatchRequests;
-    retry(): Promise<void> | null;
-    fetchStrategy(): Promise<void> | null;
+    retry(): Promise<FetchResponse | void> | null;
+    fetchStrategy(): Promise<FetchResponse | void> | null;
     processResult(data: DocumentClient.BatchGetItemOutput | DocumentClient.TransactGetItemsOutput | void): void;
     processError(err: Error | {
         tableName: string;

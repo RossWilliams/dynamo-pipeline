@@ -24,6 +24,7 @@ export class QueryFetcher extends AbstractFetcher {
             ...(this.request.Limit && { Limit: this.request.Limit - this.totalReturned }),
             ...this.request,
             ...(Boolean(this.nextToken) && typeof this.nextToken === "object" && { ExclusiveStartKey: this.nextToken }),
+            ...(this.tokenBucket && { ReturnConsumedCapacity: "INDEXES" }),
         };
         const promise = this.documentClient[this.operation](request).promise();
         return promise;

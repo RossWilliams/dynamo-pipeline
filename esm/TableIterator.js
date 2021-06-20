@@ -1,7 +1,8 @@
 export class TableIterator {
-    constructor(fetcher, parent) {
+    constructor(fetcher, parent, tokenBucket) {
         this.lastEvaluatedKeyHandlers = [];
         this.config = { parent: parent, fetcher };
+        this.tokenBucket = tokenBucket;
     }
     async forEachStride(iterator) {
         let index = 0;

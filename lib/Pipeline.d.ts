@@ -1,7 +1,26 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { ConditionExpression, UpdateReturnValues, PrimitiveType, Key } from "./types";
 import { TableIterator } from "./TableIterator";
-import { ScanQueryPipeline } from "./ScanQueryPipeline";
+import { ScanQueryConstructorConfig, ScanQueryPipeline } from "./ScanQueryPipeline";
+interface InterfaceConfig<KD> {
+    client: DocumentClient;
+    table: string;
+    keys: KD;
+    index?: string;
+    readBuffer: number;
+    writeBuffer: number;
+    readBatchSize: number;
+    writeBatchSize: number;
+}
+interface PipelineConstructorConfig extends ScanQueryConstructorConfig {
+    client?: DocumentClient;
+    readBuffer?: number;
+    writeBuffer?: number;
+    readBatchSize?: number;
+    writeBatchSize?: number;
+    writeCapacityUnitLimit?: number;
+    readCapacityUnitLimit?: number;
+}
 export declare class Pipeline<PK extends string, SK extends string | undefined = undefined, KD extends {
     pk: PK;
     sk: SK;
@@ -9,16 +28,13 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
     pk: PK;
     sk: SK;
 }> extends ScanQueryPipeline<PK, SK, KD> {
+    private writeTokenBucket?;
+    config: InterfaceConfig<KD>;
+    unprocessedItems: Key<KD>[];
     constructor(tableName: string, keys: {
         pk: PK;
         sk?: SK;
-    }, config?: {
-        client?: DocumentClient;
-        readBuffer?: number;
-        writeBuffer?: number;
-        readBatchSize?: number;
-        writeBatchSize?: number;
-    });
+    }, config?: PipelineConstructorConfig);
     withWriteBuffer(writeBuffer?: number): this;
     withWriteBatchSize(writeBatchSize?: number): this;
     createIndex<PK2 extends string, SK2 extends string>(name: string, definition: {
@@ -63,3 +79,4 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
     private keyAttributesOnlyFromArray;
     private keyAttributesOnly;
 }
+export {};

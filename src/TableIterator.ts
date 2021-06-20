@@ -1,17 +1,20 @@
 import DynamoDB from "aws-sdk/clients/dynamodb";
+import { TokenBucket } from "./TokenBucket";
 
 interface IteratorExecutor<T> {
   execute(): AsyncGenerator<T[], { lastEvaluatedKey: Record<string, unknown> } | void, void>;
 }
 export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
   private lastEvaluatedKeyHandlers: Array<(k: Record<string, unknown>) => void> = [];
+  private tokenBucket?: TokenBucket;
   config: {
     parent: P;
     fetcher: IteratorExecutor<T>;
   };
 
-  constructor(fetcher: IteratorExecutor<T>, parent?: P) {
+  constructor(fetcher: IteratorExecutor<T>, parent?: P, tokenBucket?: TokenBucket) {
     this.config = { parent: parent as P, fetcher };
+    this.tokenBucket = tokenBucket;
   }
 
   async forEachStride(

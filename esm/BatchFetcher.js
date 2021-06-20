@@ -127,6 +127,7 @@ export class BatchGetFetcher extends AbstractFetcher {
                     TableName: item.tableName,
                 },
             })),
+            ...(this.tokenBucket && { ReturnConsumedCapacity: "TOTAL" }),
         };
         return transaction;
     }
@@ -146,6 +147,7 @@ export class BatchGetFetcher extends AbstractFetcher {
                     Keys: currentChunk.keys,
                 },
             },
+            ...(this.tokenBucket && { ReturnConsumedCapacity: "TOTAL" }),
         };
         return request;
     }

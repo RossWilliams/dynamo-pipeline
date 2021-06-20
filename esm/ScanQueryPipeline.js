@@ -2,6 +2,7 @@ import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { conditionToDynamo, skQueryToDynamoString } from "./helpers";
 import { QueryFetcher } from "./QueryFetcher";
 import { TableIterator } from "./TableIterator";
+import { TokenBucket } from "./TokenBucket";
 export const sortKey = (...args) => {
     if (args.length === 3) {
         return ["between", "and", args[1], args[2]];
@@ -11,22 +12,29 @@ export const sortKey = (...args) => {
 export class ScanQueryPipeline {
     constructor(tableName, keys, index, config) {
         this.sortKey = sortKey;
-        this.config = {
+        // 'as unknown' is a shortcut to use KD, otherwise type definitions throughout the class are too long
+        this.config = this.createConfig(tableName, index, keys, config);
+        if (config === null || config === void 0 ? void 0 : config.readCapacityUnitLimit) {
+            this.readTokenBucket = new TokenBucket(index || tableName, config.readCapacityUnitLimit);
+        }
+        return this;
+    }
+    createConfig(tableName, index, keys, config) {
+        return {
             table: tableName,
             readBuffer: 1,
-            writeBuffer: 3,
             readBatchSize: 100,
-            writeBatchSize: 25,
             ...config,
-            // shortcut to use KD, otherwise type definitions throughout the
-            // class are too long
-            keys: keys,
+            keys,
             index: index,
             client: (config && config.client) || new DocumentClient(),
         };
-        this.unprocessedItems = [];
-        return this;
     }
+    /**
+     * A convenience long-form method to set the read buffer.
+     * @param readBuffer The read buffer from the constructor configuration options
+     * @returns this
+     */
     withReadBuffer(readBuffer) {
         if (readBuffer < 0) {
             throw new Error("Read buffer out of range");
@@ -34,6 +42,11 @@ export class ScanQueryPipeline {
         this.config.readBuffer = readBuffer;
         return this;
     }
+    /**
+     * A convenience long-form method to set the read batch size.
+     * @param readBuffer The read batch size from the constructor configuration options
+     * @returns this
+     */
     withReadBatchSize(readBatchSize) {
         if (readBatchSize < 1) {
             throw new Error("Read batch size out of range");
@@ -41,15 +54,28 @@ export class ScanQueryPipeline {
         this.config.readBatchSize = readBatchSize;
         return this;
     }
+    /**
+     * Prepares a dynamodb query to be executed by the returned TableIterator.
+     * @param keyConditions A required partition key and optional sort key QueryTemplate.
+     * The sort key should use the Pipeline.sortKey() convenience method.
+     * @param options Query specific options and Pipeline configuration override options
+     * @returns TableIterator
+     */
     query(keyConditions, options) {
         const request = this.buildQueryScanRequest({ ...options, keyConditions });
         const fetchOptions = {
             bufferCapacity: this.config.readBuffer,
             batchSize: this.config.readBatchSize,
+            tokenBucket: this.readTokenBucket,
             ...options,
         };
         return new TableIterator(new QueryFetcher(request, this.config.client, "query", fetchOptions), this);
     }
+    /**
+     * Prepares a dynamodb scan to be executed by the returned TableIterator.
+     * @param options Scan specific options and Pipeline configuration override options
+     * @returns TableIterator
+     */
     scan(options) {
         const request = this.buildQueryScanRequest(options !== null && options !== void 0 ? options : {});
         const fetchOptions = {

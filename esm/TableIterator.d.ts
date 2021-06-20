@@ -1,4 +1,5 @@
 import DynamoDB from "aws-sdk/clients/dynamodb";
+import { TokenBucket } from "./TokenBucket";
 interface IteratorExecutor<T> {
     execute(): AsyncGenerator<T[], {
         lastEvaluatedKey: Record<string, unknown>;
@@ -6,11 +7,12 @@ interface IteratorExecutor<T> {
 }
 export declare class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
     private lastEvaluatedKeyHandlers;
+    private tokenBucket?;
     config: {
         parent: P;
         fetcher: IteratorExecutor<T>;
     };
-    constructor(fetcher: IteratorExecutor<T>, parent?: P);
+    constructor(fetcher: IteratorExecutor<T>, parent?: P, tokenBucket?: TokenBucket);
     forEachStride(iterator: (items: T[], index: number, parent: P, cancel: () => void) => Promise<any> | void): Promise<P>;
     onLastEvaluatedKey(handler: (lastEvaluatedKey: Record<string, unknown>) => void): this;
     private iterate;
