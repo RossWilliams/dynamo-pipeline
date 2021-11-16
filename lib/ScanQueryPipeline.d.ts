@@ -1,7 +1,11 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 import { TableIterator } from "./TableIterator";
 import { ComparisonOperator, ConditionExpression, Key, KeyConditions, QueryTemplate, Scalar } from "./types";
 export declare type SortArgs = [Exclude<ComparisonOperator | "begins_with", "<>">, Scalar] | ["between", Scalar, Scalar];
+export declare type AttributeMap = {
+    [key: string]: NativeAttributeValue;
+};
 export declare const sortKey: (...args: SortArgs) => QueryTemplate;
 export declare class ScanQueryPipeline<PK extends string, SK extends string | undefined = undefined, KD extends {
     pk: PK;
@@ -11,7 +15,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
     sk: SK;
 }> {
     config: {
-        client: DocumentClient;
+        client: DynamoDBDocumentClient;
         table: string;
         keys: KD;
         index?: string;
@@ -25,7 +29,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         pk: PK;
         sk?: SK;
     }, index?: string, config?: {
-        client?: DocumentClient;
+        client?: DynamoDBDocumentClient;
         readBuffer?: number;
         writeBuffer?: number;
         readBatchSize?: number;
@@ -35,7 +39,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
     sortKey: (...args: SortArgs) => QueryTemplate;
     withReadBuffer(readBuffer: number): this;
     withReadBatchSize(readBatchSize: number): this;
-    query<ReturnType = DocumentClient.AttributeMap>(keyConditions: KeyConditions<{
+    query<ReturnType = AttributeMap>(keyConditions: KeyConditions<{
         pk: PK;
         sk: SK;
     }>, options?: {
@@ -47,7 +51,7 @@ export declare class ScanQueryPipeline<PK extends string, SK extends string | un
         consistentRead?: boolean;
         nextToken?: Key<KD>;
     }): TableIterator<ReturnType, this>;
-    scan<ReturnType = DocumentClient.AttributeMap>(options?: {
+    scan<ReturnType = AttributeMap>(options?: {
         batchSize?: number;
         bufferCapacity?: number;
         limit?: number;

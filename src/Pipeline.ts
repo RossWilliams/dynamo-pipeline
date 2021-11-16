@@ -1,11 +1,20 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import {
+  DeleteCommand,
+  DeleteCommandInput,
+  DynamoDBDocumentClient as DocumentClient,
+  PutCommand,
+  PutCommandInput,
+  UpdateCommand,
+  UpdateCommandInput,
+  UpdateCommandOutput,
+} from "@aws-sdk/lib-dynamodb";
 
 import { KeyDefinition, ConditionExpression, UpdateReturnValues, PrimitiveType, Key, Scalar } from "./types";
 import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { BatchWriter } from "./BatchWriter";
 import { conditionToDynamo, pkName } from "./helpers";
-import { ScanQueryPipeline, sortKey } from "./ScanQueryPipeline";
+import { AttributeMap, ScanQueryPipeline, sortKey } from "./ScanQueryPipeline";
 
 export class Pipeline<
   PK extends string,
@@ -55,7 +64,7 @@ export class Pipeline<
     return new ScanQueryPipeline<PK2, SK2, { pk: PK2; sk: SK2 }>(this.config.table, definition, name, config);
   }
 
-  transactGet<T = DocumentClient.AttributeMap, KD2 extends KD = KD>(
+  transactGet<T = AttributeMap, KD2 extends KD = KD>(
     keys: Key<KD>[] | { tableName: string; keys: Key<KD2>; keyDefinition: KD2 }[],
     options?: {
       bufferCapacity?: number;
@@ -83,7 +92,7 @@ export class Pipeline<
     );
   }
 
-  getItems<T = DocumentClient.AttributeMap>(
+  getItems<T = AttributeMap>(
     keys: Key<KD>[],
     options?: { batchSize?: number; bufferCapacity?: number; consistentRead?: boolean }
   ): TableIterator<T, this> {
@@ -147,7 +156,7 @@ export class Pipeline<
   }
 
   put<Item extends Key<KD>>(item: Item, condition?: ConditionExpression): Promise<Pipeline<PK, SK, KD>> {
-    const request: DocumentClient.PutItemInput = {
+    const request: PutCommandInput = {
       TableName: this.config.table,
       Item: item,
     };
@@ -158,9 +167,9 @@ export class Pipeline<
       request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
     }
 
-    return this.config.client
-      .put(request)
-      .promise()
+    const promise = this.config.client.send(new PutCommand(request));
+
+    return promise
       .catch((e) => {
         console.error("Error: AWS Error, Put,", e);
         this.unprocessedItems.push(item);
@@ -184,7 +193,7 @@ export class Pipeline<
       condition?: ConditionExpression;
       returnType?: UpdateReturnValues;
     }
-  ): DocumentClient.UpdateItemInput & { UpdateExpression: string } {
+  ): UpdateCommandInput & { UpdateExpression: string } {
     const expression = Object.keys(attributes)
       .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
       .join(", ");
@@ -200,7 +209,7 @@ export class Pipeline<
       }),
       {}
     );
-    const request: DocumentClient.UpdateItemInput & { UpdateExpression: string } = {
+    const request: UpdateCommandInput & { UpdateExpression: string } = {
       TableName: this.config.table,
       Key: this.keyAttributesOnly(key, this.config.keys),
 
@@ -232,7 +241,7 @@ export class Pipeline<
     return request;
   }
 
-  update<T extends DocumentClient.AttributeMap>(
+  update<T extends AttributeMap>(
     key: Key<KD>,
     attributes: Record<string, PrimitiveType>,
     options?: {
@@ -244,18 +253,17 @@ export class Pipeline<
     const request = this.buildUpdateRequest(key, attributes, options);
 
     return this.config.client
-      .update(request)
-      .promise()
+      .send(new UpdateCommand(request))
       .catch((e) => {
         console.error("Error: AWS Error, Update", e);
         this.unprocessedItems.push(key);
       })
-      .then((d: DocumentClient.UpdateItemOutput | Error | void) => {
+      .then((d: UpdateCommandOutput | Error | void) => {
         return d && "Attributes" in d && d.Attributes ? (d.Attributes as T) : null;
       });
   }
 
-  delete<T extends DocumentClient.AttributeMap>(
+  delete<T extends AttributeMap>(
     key: Key<KD>,
     options?: {
       condition?: ConditionExpression | undefined;
@@ -263,7 +271,7 @@ export class Pipeline<
       reportError?: boolean;
     }
   ): Promise<T | null> {
-    const request: DocumentClient.DeleteItemInput = {
+    const request: DeleteCommandInput = {
       TableName: this.config.table,
       Key: this.keyAttributesOnly<KD>(key, this.config.keys),
       ...(options?.returnType && { ReturnValues: options.returnType }),
@@ -285,8 +293,7 @@ export class Pipeline<
     }
 
     return this.config.client
-      .delete(request)
-      .promise()
+      .send(new DeleteCommand(request))
       .catch((e) => {
         if (options?.reportError) {
           console.error("Error: AWS Error, Delete", e, request);

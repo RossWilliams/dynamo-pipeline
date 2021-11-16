@@ -1,7 +1,7 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBDocumentClient as DocumentClient, UpdateCommandInput } from "@aws-sdk/lib-dynamodb";
 import { ConditionExpression, UpdateReturnValues, PrimitiveType, Key } from "./types";
 import { TableIterator } from "./TableIterator";
-import { ScanQueryPipeline } from "./ScanQueryPipeline";
+import { AttributeMap, ScanQueryPipeline } from "./ScanQueryPipeline";
 export declare class Pipeline<PK extends string, SK extends string | undefined = undefined, KD extends {
     pk: PK;
     sk: SK;
@@ -25,14 +25,14 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
         pk: PK2;
         sk?: SK2;
     }): ScanQueryPipeline<PK2, SK2>;
-    transactGet<T = DocumentClient.AttributeMap, KD2 extends KD = KD>(keys: Key<KD>[] | {
+    transactGet<T = AttributeMap, KD2 extends KD = KD>(keys: Key<KD>[] | {
         tableName: string;
         keys: Key<KD2>;
         keyDefinition: KD2;
     }[], options?: {
         bufferCapacity?: number;
     }): TableIterator<T, this>;
-    getItems<T = DocumentClient.AttributeMap>(keys: Key<KD>[], options?: {
+    getItems<T = AttributeMap>(keys: Key<KD>[], options?: {
         batchSize?: number;
         bufferCapacity?: number;
         consistentRead?: boolean;
@@ -47,14 +47,14 @@ export declare class Pipeline<PK extends string, SK extends string | undefined =
     buildUpdateRequest(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
         condition?: ConditionExpression;
         returnType?: UpdateReturnValues;
-    }): DocumentClient.UpdateItemInput & {
+    }): UpdateCommandInput & {
         UpdateExpression: string;
     };
-    update<T extends DocumentClient.AttributeMap>(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
+    update<T extends AttributeMap>(key: Key<KD>, attributes: Record<string, PrimitiveType>, options?: {
         condition?: ConditionExpression;
         returnType?: UpdateReturnValues;
     }): Promise<T | null>;
-    delete<T extends DocumentClient.AttributeMap>(key: Key<KD>, options?: {
+    delete<T extends AttributeMap>(key: Key<KD>, options?: {
         condition?: ConditionExpression | undefined;
         returnType?: "ALL_OLD";
         reportError?: boolean;

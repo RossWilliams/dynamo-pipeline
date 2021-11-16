@@ -1,4 +1,4 @@
-import { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
+import { DynamoDBDocumentClient as DocumentClient } from "@aws-sdk/lib-dynamodb";
 
 export abstract class AbstractFetcher<T> {
   protected activeRequests: Promise<any>[] = [];
@@ -38,7 +38,7 @@ export abstract class AbstractFetcher<T> {
   2. Set results and totalReturned.
   3. Handle API errors
   */
-  abstract processResult(data: Record<string, any>): void;
+  abstract processResult(data: any): void;
 
   // take in a promise to allow recursive calls,
   // batch fetcher can immediately create many requests

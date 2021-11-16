@@ -1,193 +1,262 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
-import AWS from "aws-sdk";
-import { Request } from "aws-sdk/lib/request";
-import AWSMock from "aws-sdk-mock";
+import { Command } from "@aws-sdk/types";
+import {
+  BatchGetCommand,
+  BatchGetCommandOutput,
+  BatchWriteCommand,
+  BatchWriteCommandOutput,
+  DeleteCommand,
+  DeleteCommandOutput,
+  DynamoDBDocumentClient,
+  PutCommand,
+  PutCommandOutput,
+  QueryCommand,
+  QueryCommandOutput,
+  ScanCommand,
+  ScanCommandOutput,
+  ServiceInputTypes,
+  ServiceOutputTypes,
+  TransactGetCommand,
+  TransactGetCommandOutput,
+  UpdateCommand,
+  UpdateCommandOutput,
+} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
 let mockOn = true;
 
-type Spy<TInput, TOutput> = jest.MockContext<Request<TOutput, Error>, [TInput, any?]>;
-type WrappedFn<TInput, TOutput> = (client: DocumentClient, spy: Spy<TInput, TOutput>) => Promise<void>;
-type MockReturn<TOutput> = { err?: Error; data?: TOutput } | { err?: Error; data?: TOutput }[];
+type Spy<TInput, TOutput> = jest.MockContext<Promise<TOutput>, [TInput]>;
+type WrappedFn<TInput, TOutput> = (client: DynamoDBDocumentClient, spy: Spy<TInput, TOutput>) => Promise<void>;
+type MockReturn<TOutput> =
+  | { err?: Error; data?: Omit<TOutput, "$metadata"> }
+  | { err?: Error; data?: Omit<TOutput, "$metadata"> }[];
+
+type CommandTypes =
+  | typeof ScanCommand
+  | typeof QueryCommand
+  | typeof DeleteCommand
+  | typeof UpdateCommand
+  | typeof PutCommand
+  | typeof BatchGetCommand
+  | typeof BatchWriteCommand
+  | typeof TransactGetCommand;
 
 export function setMockOn(on: boolean): void {
   mockOn = on;
 }
 
 interface MockSet<TOutput = Record<string, unknown>> {
-  name: "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
+  name: CommandTypes;
   returns?: MockReturn<TOutput>;
   delay?: number;
 }
 
 export function multiMock(
-  fn: (client: DocumentClient, spies: jest.MockContext<any, any[]>[]) => Promise<void>,
-  mockSet: MockSet[]
+  fn: (client: DynamoDBDocumentClient, spies: jest.MockContext<any, any[]>[]) => Promise<void>,
+  mockSet: MockSet<Record<string, unknown>>[]
 ): () => Promise<void> {
   return async () => {
-    const spies = mockSet.map((ms) => setupMock(ms.name, ms.returns, true, ms.delay).mock);
     // eslint-disable-next-line
-    const client = new (AWS as any).DynamoDB.DocumentClient();
+    const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+    const spies = mockSet.map((ms) => setupMock(client, ms.name, ms.returns, true, ms.delay).mock);
 
     await fn(client, spies);
-    mockSet.forEach((ms) => teardownMock(ms.name, true));
+    teardownMock(client, true);
   };
 }
 
 export function mockScan(
-  fn: WrappedFn<DocumentClient.ScanInput, DocumentClient.ScanOutput>,
-  returns?: MockReturn<DocumentClient.ScanOutput>,
+  fn: WrappedFn<ScanCommand, ScanCommandOutput>,
+  returns?: MockReturn<ScanCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("scan", fn, returns, false, delay);
+  return mockCall(ScanCommand, fn, returns, false, delay);
 }
 
 export function alwaysMockScan(
-  fn: WrappedFn<DocumentClient.ScanInput, DocumentClient.ScanOutput>,
-  returns?: MockReturn<DocumentClient.ScanOutput>,
+  fn: WrappedFn<ScanCommand, ScanCommandOutput>,
+  returns?: MockReturn<ScanCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("scan", fn, returns, true, delay);
+  return mockCall(ScanCommand, fn, returns, true, delay);
 }
 
 export function mockQuery(
-  fn: WrappedFn<DocumentClient.QueryInput, DocumentClient.QueryOutput>,
-  returns?: MockReturn<DocumentClient.QueryOutput>,
+  fn: WrappedFn<QueryCommand, QueryCommandOutput>,
+  returns?: MockReturn<QueryCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("query", fn, returns, false, delay);
+  return mockCall(QueryCommand, fn, returns, false, delay);
 }
 
 export function alwaysMockQuery(
-  fn: WrappedFn<DocumentClient.QueryInput, DocumentClient.QueryOutput>,
-  returns?: MockReturn<DocumentClient.QueryOutput>,
+  fn: WrappedFn<QueryCommand, QueryCommandOutput>,
+  returns?: MockReturn<QueryCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("query", fn, returns, true, delay);
+  return mockCall(QueryCommand, fn, returns, true, delay);
 }
 
 export function alwaysMockBatchGet(
-  fn: WrappedFn<DocumentClient.BatchGetItemInput, DocumentClient.BatchGetItemOutput>,
-  returns?: MockReturn<DocumentClient.BatchGetItemOutput>,
+  fn: WrappedFn<BatchGetCommand, BatchGetCommandOutput>,
+  returns?: MockReturn<BatchGetCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("batchGet", fn, returns, true, delay);
+  return mockCall(BatchGetCommand, fn, returns, true, delay);
 }
 
 export function mockPut(
-  fn: WrappedFn<DocumentClient.PutItemInput, DocumentClient.PutItemOutput>,
-  returns?: MockReturn<DocumentClient.PutItemOutput>
+  fn: WrappedFn<PutCommand, PutCommandOutput>,
+  returns?: MockReturn<PutCommandOutput>
 ): () => Promise<void> {
-  return mockCall("put", fn, returns);
+  return mockCall(PutCommand, fn, returns);
 }
 
 export function mockUpdate(
-  fn: WrappedFn<DocumentClient.UpdateItemInput, DocumentClient.UpdateItemOutput>,
-  returns?: MockReturn<DocumentClient.UpdateItemOutput>
+  fn: WrappedFn<UpdateCommand, UpdateCommandOutput>,
+  returns?: MockReturn<UpdateCommandOutput>
 ): () => Promise<void> {
-  return mockCall("update", fn, returns);
+  return mockCall(UpdateCommand, fn, returns);
 }
 
 export function mockDelete(
-  fn: WrappedFn<DocumentClient.DeleteItemInput, DocumentClient.DeleteItemOutput>,
-  returns?: MockReturn<DocumentClient.DeleteItemOutput>
+  fn: WrappedFn<DeleteCommand, DeleteCommandOutput>,
+  returns?: MockReturn<DeleteCommandOutput>
 ): () => Promise<void> {
-  return mockCall("delete", fn, returns);
+  return mockCall(DeleteCommand, fn, returns);
 }
 
 export function alwaysMockBatchWrite(
-  fn: WrappedFn<DocumentClient.BatchWriteItemInput, DocumentClient.BatchWriteItemOutput>,
-  returns?: MockReturn<DocumentClient.BatchWriteItemOutput>
+  fn: WrappedFn<BatchWriteCommand, BatchWriteCommandOutput>,
+  returns?: MockReturn<BatchWriteCommandOutput>
 ): () => Promise<void> {
-  return mockCall("batchWrite", fn, returns, true);
+  return mockCall(BatchWriteCommand, fn, returns, true);
 }
 
 export function mockBatchWrite(
-  fn: WrappedFn<DocumentClient.BatchWriteItemInput, DocumentClient.BatchWriteItemOutput>,
-  returns?: MockReturn<DocumentClient.BatchWriteItemOutput>,
+  fn: WrappedFn<BatchWriteCommand, BatchWriteCommandOutput>,
+  returns?: MockReturn<BatchWriteCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("batchWrite", fn, returns, false, delay);
+  return mockCall(BatchWriteCommand, fn, returns, false, delay);
 }
 
 export function mockBatchGet(
-  fn: WrappedFn<DocumentClient.BatchGetItemInput, DocumentClient.BatchGetItemOutput>,
-  returns?: MockReturn<DocumentClient.BatchGetItemOutput>,
+  fn: WrappedFn<BatchGetCommand, BatchGetCommandOutput>,
+  returns?: MockReturn<BatchGetCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("batchGet", fn, returns, false, delay);
+  return mockCall(BatchGetCommand, fn, returns, false, delay);
 }
 
 export function mockTransactGet(
-  fn: WrappedFn<DocumentClient.TransactGetItemsInput, DocumentClient.TransactGetItemsOutput>,
-  returns?: MockReturn<DocumentClient.TransactGetItemsOutput>,
+  fn: WrappedFn<TransactGetCommand, TransactGetCommandOutput>,
+  returns?: MockReturn<TransactGetCommandOutput>,
   delay?: number
 ): () => Promise<void> {
-  return mockCall("transactGet", fn, returns, false, delay);
+  return mockCall(TransactGetCommand, fn, returns, false, delay);
 }
 
-function mockCall<TInput, TOutput>(
-  name: string,
+function mockCall<TInput extends Command<ServiceInputTypes, any, ServiceOutputTypes, any, any>, TOutput>(
+  name: CommandTypes,
   fn: WrappedFn<TInput, TOutput>,
   returns: MockReturn<TOutput> = {},
   alwaysMock = false,
   delay?: number
 ) {
   return async () => {
-    const spy = setupMock<TInput, TOutput>(name, returns, alwaysMock, delay);
-
-    // TODO: Type cleanup
-    // eslint-disable-next-line
-    const client = new (AWS as any).DynamoDB.DocumentClient();
-
     if (!mockOn && !alwaysMock) {
-      // TODO: Type cleanup
-      await fn(
-        client,
-        jest.spyOn<{ method: (arg0: TInput) => Request<TOutput, Error> }, "method">(client, name as "method").mock
-      );
+      const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+      jest.spyOn(DynamoDBDocumentClient, "from").mockImplementation(() => {
+        return client;
+      });
+      await fn(client, jest.spyOn<{ send: (arg0: TInput) => Promise<TOutput> }, "send">(client, "send" as const).mock);
+      teardownMock(client, alwaysMock);
     } else {
+      const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+      const spy = setupMock(client, name, returns, alwaysMock, delay);
       await fn(client, spy.mock);
+      teardownMock(client, alwaysMock);
     }
-
-    teardownMock(name, alwaysMock);
   };
 }
 
-function setupMock<TInput, TOutput>(
-  name: string,
+function setupMock<TOutput>(
+  client: DynamoDBDocumentClient,
+  name: CommandTypes,
   returns: MockReturn<TOutput> = {},
   alwaysMock: boolean,
   delay?: number
 ) {
-  const spy = jest.fn<Request<TOutput, Error>, [TInput, any?]>();
+  // setup a spy for both mocked and non-mocked scenarios
+  const spy = jest.fn();
+
+  // array iterator when 'returns' includes an array
   let callCount = 0;
-  if (mockOn || alwaysMock) {
-    AWSMock.setSDKInstance(AWS);
-    AWSMock.mock("DynamoDB.DocumentClient", name, function (input: TInput, callback: (err: any, args: any) => void) {
-      spy(input);
-      if (Array.isArray(returns)) {
-        if (typeof delay === "number") {
-          setTimeout(() => {
-            callback(returns[callCount]?.err, returns[callCount]?.data);
+
+  const callback = (...args: Parameters<typeof client.send>): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      // only process return values with the command name matches with the command being sent
+      if (args[0] instanceof name) {
+        if (Array.isArray(returns)) {
+          if (typeof delay === "number") {
+            setTimeout(() => {
+              returns[callCount]?.err ? reject(returns[callCount]?.err) : resolve(returns[callCount]?.data);
+              callCount += 1;
+            }, delay);
+          } else {
+            returns[callCount]?.err ? reject(returns[callCount]?.err) : resolve(returns[callCount]?.data);
             callCount += 1;
+          }
+        } else if (typeof delay === "number") {
+          setTimeout(() => {
+            returns?.err ? reject(returns?.err) : resolve(returns?.data);
           }, delay);
         } else {
-          callback(returns[callCount]?.err, returns[callCount]?.data);
-          callCount += 1;
+          returns?.err ? reject(returns?.err) : resolve(returns?.data);
         }
-      } else if (typeof delay === "number") {
-        setTimeout(() => callback(returns?.err, returns?.data), delay);
-      } else {
-        callback(returns?.err, returns?.data);
       }
     });
+  };
+
+  if (mockOn || alwaysMock) {
+    // mock the send call, but only once
+    if (!jest.isMockFunction(client.send)) {
+      jest.spyOn(client, "send").mockImplementation((...args) => {
+        // trigger the spy to record inputs to the request, but only when the command matches the passed in name
+        if (args[0] instanceof name) {
+          spy(...args);
+        }
+        return callback(...args);
+      });
+    } else {
+      const fn = (client.send as jest.Mock).getMockImplementation();
+      (client.send as jest.Mock).mockImplementation((...args: Parameters<typeof client.send>) => {
+        if (args[0] instanceof name) {
+          spy(...args);
+        }
+        const exstingPromise = fn(...args);
+        // only a promise with a command that matches the command name will resolve, but
+        // we run all promises. Race gives us the value of the only command that will return
+        return Promise.race([callback(...args), exstingPromise]);
+      });
+    }
+
+    if (!jest.isMockFunction(DynamoDBDocumentClient.from)) {
+      // in addition mock the entire DynamoDBDocumentClient constructor, this allows
+      // users who do not pass in a document client into the constructor to skill mock. See example-lambda.test.ts
+      jest.spyOn(DynamoDBDocumentClient, "from").mockImplementation(() => {
+        return client;
+      });
+    }
   }
 
   return spy;
 }
 
-function teardownMock(name: string, alwaysMock?: boolean) {
-  if (mockOn || alwaysMock) {
-    AWSMock.restore("DynamoDB.DocumentClient", name);
+function teardownMock(client: DynamoDBDocumentClient, alwaysMock?: boolean) {
+  if (jest.isMockFunction(client.send)) {
+    (client.send as jest.Mock).mockRestore();
   }
+
+  (DynamoDBDocumentClient.from as jest.Mock).mockRestore();
 }

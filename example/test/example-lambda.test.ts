@@ -1,5 +1,13 @@
-// import { mocks } from "dynamo-pipeline";
-import DynamoDB from "aws-sdk/clients/dynamodb";
+// import { mocks } from "dynamo-pipeline";;
+import {
+  DeleteCommand,
+  PutCommand,
+  UpdateCommand,
+  QueryCommand,
+  QueryCommandInput,
+  DeleteCommandInput,
+  PutCommandInput,
+} from "@aws-sdk/lib-dynamodb";
 import * as mocks from "../../lib/mocks";
 import { handler } from "../src/example-lambda";
 
@@ -25,17 +33,22 @@ describe("Example Lambda", () => {
 
   test(
     "Attempts to update user profile, returns early if expected version does not match",
-    mocks.mockUpdate(
-      async (_client, spy) => {
+    mocks.multiMock(
+      async (_client, spies) => {
         const result = await handler({ ...testEvent, expectedVersion: 0 });
-        const request = spy.calls[0]![0]; // eslint-disable-line
+        const request = spies[0]!.calls[0]![0].input; // eslint-disable-line
 
-        expect(spy.calls.length).toEqual(1);
+        expect(spies[0]!.calls.length).toEqual(1);
         expect(request.ConditionExpression).toBeTruthy();
         expect(request.ExpressionAttributeValues?.[":v2"]).toEqual(0);
         expect("error" in result && result.error).toEqual("Version Conflict Error");
       },
-      { data: { Attributes: { currentVersion: 2 } } }
+      [
+        { name: UpdateCommand, returns: { data: { Attributes: { currentVersion: 2 } } } },
+        { name: QueryCommand, returns: { data: { Items: [] } } },
+        { name: DeleteCommand },
+        { name: PutCommand },
+      ]
     )
   );
 
@@ -49,15 +62,15 @@ describe("Example Lambda", () => {
 
         expect("error" in result).toBeFalsy();
         expect(querySpy.calls.length).toEqual(1);
-        const request = querySpy.calls[0]?.[0] as DynamoDB.QueryInput;
+        const request = querySpy.calls[0]?.[0].input as QueryCommandInput;
         expect(request.IndexName).toEqual("gsi1");
         expect(request.KeyConditionExpression?.includes("BETWEEN")).toBeTruthy();
       },
       [
-        { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
-        { name: "query", returns: { data: { Items: [] } } },
-        { name: "delete" },
-        { name: "put" },
+        { name: UpdateCommand, returns: { data: { Attributes: { currentVersion: 2 } } } },
+        { name: QueryCommand, returns: { data: { Items: [] } } },
+        { name: DeleteCommand },
+        { name: PutCommand },
       ]
     )
   );
@@ -69,7 +82,7 @@ describe("Example Lambda", () => {
         const deleteSpy = spies[2]!; // eslint-disable-line
 
         await handler(testEvent);
-        const deleteKeys = (deleteSpy.calls as [[DynamoDB.DeleteItemInput]]).map((call) => call[0].Key);
+        const deleteKeys = (deleteSpy.calls as [[{ input: DeleteCommandInput }]]).map((call) => call[0].input.Key);
 
         expect(deleteSpy.calls.length).toEqual(3);
         expect(deleteKeys[0]?.id).toEqual("1");
@@ -81,7 +94,7 @@ describe("Example Lambda", () => {
       },
       [
         {
-          name: "query",
+          name: QueryCommand,
           returns: {
             data: {
               Items: [
@@ -92,9 +105,9 @@ describe("Example Lambda", () => {
             },
           },
         },
-        { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
-        { name: "delete" },
-        { name: "put" },
+        { name: UpdateCommand, returns: { data: { Attributes: { currentVersion: 2 } } } },
+        { name: DeleteCommand },
+        { name: PutCommand },
       ]
     )
   );
@@ -106,16 +119,16 @@ describe("Example Lambda", () => {
         const putSpy = spies[0]!; // eslint-disable-line
 
         await handler(testEvent);
-        const request = putSpy.calls[0]![0] as DynamoDB.PutItemInput; // eslint-disable-line
+        const request = putSpy.calls[0]![0].input as PutCommandInput; // eslint-disable-line
 
         expect(putSpy.calls.length).toEqual(1);
-        expect(request.Item.start).toEqual(testEvent.startDateTime);
-        expect(request.Item.gsi1pk).toEqual(testEvent.userId);
+        expect(request.Item!.start).toEqual(testEvent.startDateTime);
+        expect(request.Item!.gsi1pk).toEqual(testEvent.userId);
       },
       [
-        { name: "put" },
+        { name: PutCommand },
         {
-          name: "query",
+          name: QueryCommand,
           returns: {
             data: {
               Items: [
@@ -126,8 +139,8 @@ describe("Example Lambda", () => {
             },
           },
         },
-        { name: "delete" },
-        { name: "update", returns: { data: { Attributes: { currentVersion: 2 } } } },
+        { name: DeleteCommand },
+        { name: UpdateCommand, returns: { data: { Attributes: { currentVersion: 2 } } } },
       ]
     )
   );

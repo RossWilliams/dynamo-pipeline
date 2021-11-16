@@ -1,3 +1,4 @@
+import { BatchGetCommand, TransactGetCommand, } from "@aws-sdk/lib-dynamodb";
 import { AbstractFetcher } from "./AbstractFetcher";
 export class BatchGetFetcher extends AbstractFetcher {
     constructor(client, operation, items, options) {
@@ -54,7 +55,7 @@ export class BatchGetFetcher extends AbstractFetcher {
                 /* istanbul ignore next */
                 return null;
             }
-            promise = this.documentClient.transactGet(transactionRequest).promise();
+            promise = this.documentClient.send(new TransactGetCommand(transactionRequest));
         }
         else if (this.operation === "batchGet") {
             const batchGetRequest = this.createBatchGetRequest();
@@ -62,7 +63,7 @@ export class BatchGetFetcher extends AbstractFetcher {
                 /* istanbul ignore next */
                 return null;
             }
-            promise = this.documentClient.batchGet(batchGetRequest).promise();
+            promise = this.documentClient.send(new BatchGetCommand(batchGetRequest));
         }
         if (typeof this.nextToken === "number" && typeof this.chunks[this.nextToken + 1] !== "undefined") {
             this.nextToken = this.nextToken + 1;

@@ -1,3 +1,4 @@
+import { BatchWriteCommand, } from "@aws-sdk/lib-dynamodb";
 export class BatchWriter {
     constructor(client, items, options) {
         this.activeRequests = [];
@@ -50,7 +51,7 @@ export class BatchWriter {
         }
         const chunk = this.getNextChunk();
         if (chunk) {
-            const request = this.client.batchWrite({
+            const command = new BatchWriteCommand({
                 RequestItems: {
                     [this.tableName]: chunk.map((item) => ({
                         PutRequest: {
@@ -59,18 +60,8 @@ export class BatchWriter {
                     })),
                 },
             });
-            if (request && typeof request.on === "function") {
-                request.on("retry", (e) => {
-                    var _a;
-                    if ((_a = e === null || e === void 0 ? void 0 : e.error) === null || _a === void 0 ? void 0 : _a.retryable) {
-                        // reduce buffer capacity on retryable error
-                        this.bufferCapacity = Math.max(Math.floor((this.bufferCapacity * 3) / 4), 5);
-                        this.backoffActive = true;
-                    }
-                });
-            }
-            const promise = request
-                .promise()
+            const promise = this.client
+                .send(command)
                 .catch((e) => {
                 console.error("Error: AWS Error, Put Items", e);
                 if (this.onUnprocessedItems) {
@@ -79,6 +70,15 @@ export class BatchWriter {
                 this.errors = e;
             })
                 .then((results) => {
+                var _a, _b, _c, _d;
+                if (results &&
+                    results.$metadata &&
+                    ((_b = (_a = results.$metadata) === null || _a === void 0 ? void 0 : _a.attempts) !== null && _b !== void 0 ? _b : 1) > 1 &&
+                    ((_d = (_c = results.$metadata) === null || _c === void 0 ? void 0 : _c.totalRetryDelay) !== null && _d !== void 0 ? _d : 0) > 0) {
+                    // reduce buffer capacity when request required multiple attempts due to backoff
+                    this.bufferCapacity = Math.max(Math.floor((this.bufferCapacity * 3) / 4), 5);
+                    this.backoffActive = true;
+                }
                 this.processResult(results, promise);
             });
             this.activeRequests.push(promise);

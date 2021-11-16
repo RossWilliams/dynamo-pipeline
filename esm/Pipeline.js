@@ -1,3 +1,4 @@
+import { DeleteCommand, PutCommand, UpdateCommand, } from "@aws-sdk/lib-dynamodb";
 import { BatchGetFetcher } from "./BatchFetcher";
 import { TableIterator } from "./TableIterator";
 import { BatchWriter } from "./BatchWriter";
@@ -93,9 +94,8 @@ export class Pipeline extends ScanQueryPipeline {
             request.ExpressionAttributeNames = compiledCondition.ExpressionAttributeNames;
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
         }
-        return this.config.client
-            .put(request)
-            .promise()
+        const promise = this.config.client.send(new PutCommand(request));
+        return promise
             .catch((e) => {
             console.error("Error: AWS Error, Put,", e);
             this.unprocessedItems.push(item);
@@ -150,8 +150,7 @@ export class Pipeline extends ScanQueryPipeline {
         // TODO: Cleanup and extact
         const request = this.buildUpdateRequest(key, attributes, options);
         return this.config.client
-            .update(request)
-            .promise()
+            .send(new UpdateCommand(request))
             .catch((e) => {
             console.error("Error: AWS Error, Update", e);
             this.unprocessedItems.push(key);
@@ -182,8 +181,7 @@ export class Pipeline extends ScanQueryPipeline {
             request.ExpressionAttributeValues = compiledCondition.ExpressionAttributeValues;
         }
         return this.config.client
-            .delete(request)
-            .promise()
+            .send(new DeleteCommand(request))
             .catch((e) => {
             if (options === null || options === void 0 ? void 0 : options.reportError) {
                 console.error("Error: AWS Error, Delete", e, request);

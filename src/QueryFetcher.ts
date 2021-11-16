@@ -1,19 +1,28 @@
 import { AbstractFetcher } from "./AbstractFetcher";
-import { ScanInput, QueryInput, DocumentClient } from "aws-sdk/clients/dynamodb";
+
+import {
+  DynamoDBDocumentClient as DocumentClient,
+  ScanCommandOutput,
+  QueryCommandOutput,
+  QueryCommand,
+  ScanCommand,
+  ScanCommandInput,
+  QueryCommandInput,
+} from "@aws-sdk/lib-dynamodb";
 
 export class QueryFetcher<T> extends AbstractFetcher<T> {
-  private request: ScanInput | QueryInput;
+  private request: ScanCommandInput | QueryCommandInput;
   private operation: "query" | "scan";
 
   constructor(
-    request: ScanInput | QueryInput,
+    request: ScanCommandInput | QueryCommandInput,
     client: DocumentClient,
     operation: "query" | "scan",
     options: {
       batchSize: number;
       bufferCapacity: number;
       limit?: number;
-      nextToken?: DocumentClient.Key;
+      nextToken?: Record<string, unknown>;
     }
   ) {
     super(client, options);
@@ -42,12 +51,14 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
       ...(Boolean(this.nextToken) && typeof this.nextToken === "object" && { ExclusiveStartKey: this.nextToken }),
     };
 
-    const promise = this.documentClient[this.operation](request).promise();
+    if (this.operation === "query") {
+      return this.documentClient.send(new QueryCommand(request));
+    }
 
-    return promise;
+    return this.documentClient.send(new ScanCommand(request));
   }
 
-  processResult(data: DocumentClient.ScanOutput | DocumentClient.QueryOutput | void): void {
+  processResult(data: ScanCommandOutput | QueryCommandOutput | void): void {
     this.nextToken = (data && data.LastEvaluatedKey) || null;
 
     if (data && data.Items) {

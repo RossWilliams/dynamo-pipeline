@@ -1,4 +1,8 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import {
+  BatchWriteCommand,
+  BatchWriteCommandOutput,
+  DynamoDBDocumentClient as DocumentClient,
+} from "@aws-sdk/lib-dynamodb";
 import { Key, KeyDefinition } from "./types";
 
 type BatchWriteItems<KD extends KeyDefinition> = { tableName: string; records: Key<KD>[] };
@@ -76,7 +80,7 @@ export class BatchWriter<KD extends KeyDefinition> {
     const chunk = this.getNextChunk();
 
     if (chunk) {
-      const request = this.client.batchWrite({
+      const command = new BatchWriteCommand({
         RequestItems: {
           [this.tableName]: chunk.map((item) => ({
             PutRequest: {
@@ -85,19 +89,8 @@ export class BatchWriter<KD extends KeyDefinition> {
           })),
         },
       });
-
-      if (request && typeof request.on === "function") {
-        request.on("retry", (e?: { error?: { retryable?: boolean } }) => {
-          if (e?.error?.retryable) {
-            // reduce buffer capacity on retryable error
-            this.bufferCapacity = Math.max(Math.floor((this.bufferCapacity * 3) / 4), 5);
-            this.backoffActive = true;
-          }
-        });
-      }
-
-      const promise = request
-        .promise()
+      const promise = this.client
+        .send(command)
         .catch((e) => {
           console.error("Error: AWS Error, Put Items", e);
           if (this.onUnprocessedItems) {
@@ -106,6 +99,16 @@ export class BatchWriter<KD extends KeyDefinition> {
           this.errors = e as Error;
         })
         .then((results) => {
+          if (
+            results &&
+            results.$metadata &&
+            (results.$metadata?.attempts ?? 1) > 1 &&
+            (results.$metadata?.totalRetryDelay ?? 0) > 0
+          ) {
+            // reduce buffer capacity when request required multiple attempts due to backoff
+            this.bufferCapacity = Math.max(Math.floor((this.bufferCapacity * 3) / 4), 5);
+            this.backoffActive = true;
+          }
           this.processResult(results, promise);
         });
 
@@ -130,7 +133,7 @@ export class BatchWriter<KD extends KeyDefinition> {
     return this.activeRequests.length > 0;
   }
 
-  private processResult(data: DocumentClient.BatchWriteItemOutput | void, request: Promise<any>): void {
+  private processResult(data: BatchWriteCommandOutput | void, request: Promise<any>): void {
     this.activeRequests = this.activeRequests.filter((r) => r !== request);
 
     if (!this.activeRequests.length || !data || !data.UnprocessedItems) {

@@ -1,4 +1,5 @@
 import { AbstractFetcher } from "./AbstractFetcher";
+import { QueryCommand, ScanCommand, } from "@aws-sdk/lib-dynamodb";
 export class QueryFetcher extends AbstractFetcher {
     constructor(request, client, operation, options) {
         super(client, options);
@@ -25,8 +26,10 @@ export class QueryFetcher extends AbstractFetcher {
             ...this.request,
             ...(Boolean(this.nextToken) && typeof this.nextToken === "object" && { ExclusiveStartKey: this.nextToken }),
         };
-        const promise = this.documentClient[this.operation](request).promise();
-        return promise;
+        if (this.operation === "query") {
+            return this.documentClient.send(new QueryCommand(request));
+        }
+        return this.documentClient.send(new ScanCommand(request));
     }
     processResult(data) {
         this.nextToken = (data && data.LastEvaluatedKey) || null;

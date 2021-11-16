@@ -1,14 +1,14 @@
-import DynamoDB from "aws-sdk/clients/dynamodb";
+import { CreateTableCommand, DescribeTableCommand, DynamoDBClient, ListTablesCommand } from "@aws-sdk/client-dynamodb";
 
 export async function ensureDatabaseExists(tableName: string): Promise<void> {
-  const dynamodb = new DynamoDB();
-  const tables = await dynamodb.listTables().promise();
+  const dynamodb = new DynamoDBClient({});
+  const tables = await dynamodb.send(new ListTablesCommand({}));
   if (!tables || !tables.TableNames) {
-    throw new Error("Could not list account tables\n\n" + ((tables.$response.error as unknown) as string));
+    throw new Error(`Could not list account tables\n\n ${tables.$metadata.toString()}`);
   }
   if (!tables.TableNames?.includes(tableName)) {
-    await dynamodb
-      .createTable({
+    await dynamodb.send(
+      new CreateTableCommand({
         AttributeDefinitions: [
           { AttributeName: "id", AttributeType: "S" },
           { AttributeName: "sk", AttributeType: "S" },
@@ -34,24 +34,21 @@ export async function ensureDatabaseExists(tableName: string): Promise<void> {
         ],
         BillingMode: "PAY_PER_REQUEST",
       })
-      .promise();
+    );
 
     let status = "CREATING";
     while (status === "CREATING") {
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      status = await dynamodb
-        .describeTable({ TableName: tableName })
-        .promise()
-        .then((result) => {
-          const indexStatus = result.Table?.GlobalSecondaryIndexes?.pop()?.IndexStatus;
-          if (indexStatus !== "ACTIVE") {
-            return "CREATING";
-          }
+      status = await dynamodb.send(new DescribeTableCommand({ TableName: tableName })).then((result) => {
+        const indexStatus = result.Table?.GlobalSecondaryIndexes?.pop()?.IndexStatus;
+        if (indexStatus !== "ACTIVE") {
+          return "CREATING";
+        }
 
-          const tableStatus = result.Table?.TableStatus || "FAILURE";
-          return tableStatus;
-        });
+        const tableStatus = result.Table?.TableStatus || "FAILURE";
+        return tableStatus;
+      });
     }
   }
 }

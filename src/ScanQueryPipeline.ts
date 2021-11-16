@@ -1,4 +1,6 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, ScanCommandInput, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
+import { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 import { conditionToDynamo, skQueryToDynamoString } from "./helpers";
 import { QueryFetcher } from "./QueryFetcher";
 import { TableIterator } from "./TableIterator";
@@ -14,6 +16,10 @@ import {
 
 export type SortArgs = [Exclude<ComparisonOperator | "begins_with", "<>">, Scalar] | ["between", Scalar, Scalar];
 
+export type AttributeMap = {
+  [key: string]: NativeAttributeValue;
+};
+
 export const sortKey = (...args: SortArgs): QueryTemplate => {
   if (args.length === 3) {
     return ["between", "and", args[1], args[2]];
@@ -28,7 +34,7 @@ export class ScanQueryPipeline<
   KD extends { pk: PK; sk: SK } = { pk: PK; sk: SK }
 > {
   config: {
-    client: DocumentClient;
+    client: DynamoDBDocumentClient;
     table: string;
     keys: KD;
     index?: string;
@@ -44,7 +50,7 @@ export class ScanQueryPipeline<
     keys: { pk: PK; sk?: SK },
     index?: string,
     config?: {
-      client?: DocumentClient;
+      client?: DynamoDBDocumentClient;
       readBuffer?: number;
       writeBuffer?: number;
       readBatchSize?: number;
@@ -62,7 +68,7 @@ export class ScanQueryPipeline<
       // class are too long
       keys: (keys as unknown) as KD,
       index: index,
-      client: (config && config.client) || new DocumentClient(),
+      client: (config && config.client) || DynamoDBDocumentClient.from(new DynamoDBClient({})),
     };
     this.unprocessedItems = [];
 
@@ -88,7 +94,7 @@ export class ScanQueryPipeline<
     return this;
   }
 
-  query<ReturnType = DocumentClient.AttributeMap>(
+  query<ReturnType = AttributeMap>(
     keyConditions: KeyConditions<{ pk: PK; sk: SK }>,
     options?: {
       sortDescending?: true;
@@ -111,7 +117,7 @@ export class ScanQueryPipeline<
     return new TableIterator(new QueryFetcher<ReturnType>(request, this.config.client, "query", fetchOptions), this);
   }
 
-  scan<ReturnType = DocumentClient.AttributeMap>(options?: {
+  scan<ReturnType = AttributeMap>(options?: {
     batchSize?: number;
     bufferCapacity?: number;
     limit?: number;
@@ -138,7 +144,7 @@ export class ScanQueryPipeline<
     bufferCapacity?: number;
     consistentRead?: boolean;
     sortDescending?: true;
-  }): DocumentClient.ScanInput | DocumentClient.QueryInput {
+  }): ScanCommandInput | QueryCommandInput {
     const pkName = this.config.keys.pk;
     const skName = this.config.keys.sk;
 
@@ -147,7 +153,7 @@ export class ScanQueryPipeline<
         ? (options.keyConditions as Record<Exclude<SK, undefined>, QueryTemplate>)[skName as Exclude<SK, undefined>]
         : null;
 
-    const request: DocumentClient.ScanInput | DocumentClient.QueryInput = {
+    const request: ScanCommandInput | QueryCommandInput = {
       TableName: this.config.table,
       ...(options.limit && {
         Limit: options.limit,

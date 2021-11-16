@@ -24,7 +24,7 @@ When running against DynamoDB:
 3. Tests are kept to under 4,000 WCUs, can be run on newly created on-demand table.
 */
 const TEST_WITH_DYNAMO = process.env.TEST_WITH_DYNAMO === "true" || process.env.TEST_WITH_DYNAMO === "1";
-const TEST_TABLE = process.env.TEST_WITH_DYNAMO_TABLE || "dynamo-pipeline-e0558699b593";
+const TEST_TABLE = process.env.TEST_WITH_DYNAMO_TABLE || "dynamo-pipeline-e0558699b594";
 
 describe("Dynamo Pipeline", () => {
   beforeAll(async () => {
@@ -121,8 +121,7 @@ describe("Dynamo Pipeline", () => {
           }
         );
         await pipeline.put({ id: "put:2", sk: "2" });
-
-        const input = spy.calls[0]![0]; // eslint-disable-line
+        const input = spy.calls[0]![0].input; // eslint-disable-line
 
         expect(input?.Item).toStrictEqual({ id: "put:2", sk: "2" });
         expect(input?.ConditionExpression).not.toBeDefined();
@@ -141,7 +140,7 @@ describe("Dynamo Pipeline", () => {
           }
         );
         await pipeline.put({ id: "put:1", sk: "1" }, { operator: "attribute_not_exists", property: "x" });
-        const input = spy.calls[0]![0]; // eslint-disable-line
+        const input = spy.calls[0]![0].input; // eslint-disable-line
         expect(input?.Item).toStrictEqual({ id: "put:1", sk: "1" });
         expect(input?.ConditionExpression).toEqual("attribute_not_exists(#p0)");
         expect(input?.ExpressionAttributeNames).toStrictEqual({ "#p0": "x" });
@@ -175,7 +174,7 @@ describe("Dynamo Pipeline", () => {
           }
         );
         expect(pipeline.unprocessedItems.length).toEqual(0);
-        const input = spy.calls[0]![0]; // eslint-disable-line
+        const input = spy.calls[0]![0].input; // eslint-disable-line
         expect(input?.ConditionExpression).toEqual(
           "(attribute_not_exists(#p0) OR attribute_exists(#p1)) AND (NOT attribute_type(#p2, :v0))"
         );
@@ -196,7 +195,7 @@ describe("Dynamo Pipeline", () => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
         await pipeline.putIfNotExists({ id: "put:4", sk: "4", other: ["item"], nullish: null });
-        const input = spy.calls[0]![0]; // eslint-disable-line
+        const input = spy.calls[0]![0].input; // eslint-disable-line
         expect(Object.keys(input.ExpressionAttributeNames || {}).length).toEqual(1);
         expect(Object.values(input.ExpressionAttributeNames || {})).toStrictEqual(["id"]);
         expect(pipeline.unprocessedItems.length).toEqual(0);
@@ -210,7 +209,7 @@ describe("Dynamo Pipeline", () => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
           await pipeline.put({ id: "put:4", sk: "4" }, { operator: "attribute_not_exists", property: "sk" });
-          const input = spy.calls[0]![0]; // eslint-disable-line
+          const input = spy.calls[0]![0].input; // eslint-disable-line
 
           expect(input.ExpressionAttributeValues).not.toBeDefined();
           expect(input.ExpressionAttributeNames).toStrictEqual({
@@ -230,7 +229,7 @@ describe("Dynamo Pipeline", () => {
 
         await pipeline.put({ id: "put:4", sk: "4" }, { lhs: "sk", operator: "<", rhs: { value: "5" } });
 
-        const input = spy.calls[0]![0]; // eslint-disable-line
+        const input = spy.calls[0]![0].input; // eslint-disable-line
         expect(input.ExpressionAttributeValues).toStrictEqual({ ":v0": "5" });
         expect(input.ExpressionAttributeNames).toStrictEqual({ "#p0": "sk" });
         expect(input.ConditionExpression).toEqual("#p0 < :v0");
@@ -273,7 +272,7 @@ describe("Dynamo Pipeline", () => {
 
         expect(pipeline.unprocessedItems.length).toEqual(0);
 
-        const input = spy.calls[2]![0]; // eslint-disable-line
+        const input = spy.calls[2]![0].input; // eslint-disable-line
 
         expect(input.ExpressionAttributeValues).toStrictEqual({
           ":v0": 1,
@@ -333,7 +332,7 @@ describe("Dynamo Pipeline", () => {
         expect(pipeline.unprocessedItems.length).toEqual(0);
 
         // eslint-disable-next-line
-        const input = spy.calls[1]![0];
+        const input = spy.calls[1]![0].input;
 
         expect(input.ExpressionAttributeValues).toStrictEqual({
           ":v0": "4",
@@ -446,6 +445,7 @@ describe("Dynamo Pipeline", () => {
             { id: "putMany:good", sk: "2", other: 1 },
             { id: "putMany:bad2", sk: "2", other: 1 },
           ];
+
           await pipeline.putItems(items);
           expect(pipeline.unprocessedItems.length).toEqual(1);
         },
@@ -535,7 +535,7 @@ describe("Dynamo Pipeline", () => {
             }
           );
 
-          const input = spy.calls[0]?.[0] || ({} as Record<string, any>); // eslint-disable-line
+          const input = spy.calls[0]?.[0].input || ({} as Record<string, any>); // eslint-disable-line
           expect(result).toStrictEqual({ other: 4 });
           expect(input.UpdateExpression).toEqual("SET #other = :other");
           expect(input.ConditionExpression).toEqual("#p1 > :v1");
@@ -573,7 +573,7 @@ describe("Dynamo Pipeline", () => {
             }
           );
 
-          const input = spy.calls[0]?.[0] || { ConditionExpression: null }; // eslint-disable-line
+          const input = spy.calls[0]?.[0].input || { ConditionExpression: null }; // eslint-disable-line
           expect(result).toEqual(null);
           expect(input.ConditionExpression).toEqual("#p1 < :v1");
           expect(pipeline.unprocessedItems.length).toEqual(1);
@@ -639,7 +639,7 @@ describe("Dynamo Pipeline", () => {
             { condition: { lhs: "other", operator: ">", rhs: { value: 0 } }, returnType: "ALL_OLD" }
           );
 
-          const input = spy.calls[0]![0]; // eslint-disable-line
+          const input = spy.calls[0]![0].input; // eslint-disable-line
           expect(result).toStrictEqual({ other: 2, id: "delete:2", sk: "2" });
           expect(input.ConditionExpression).toEqual("#p0 > :v0");
           expect(input.ExpressionAttributeNames).toStrictEqual({
@@ -667,7 +667,7 @@ describe("Dynamo Pipeline", () => {
             { condition: { lhs: "other", operator: "<", rhs: { value: 0 } }, reportError: true }
           );
 
-          const input = spy.calls[0]![0]; // eslint-disable-line
+          const input = spy.calls[0]![0].input; // eslint-disable-line
           expect(result).toEqual(null);
           expect(input.ConditionExpression).toEqual("#p0 < :v0");
           expect(pipeline.unprocessedItems.length).toEqual(1);
@@ -1545,7 +1545,7 @@ describe("Dynamo Pipeline", () => {
           );
 
           const result = await query.all();
-          const request = spy.calls[0]![0]; // eslint-disable-line
+          const request = spy.calls[0]![0].input; // eslint-disable-line
           expect(request.KeyConditionExpression?.indexOf("begins_with(")).toBeGreaterThan(-1);
           expect(result.length).toEqual(11);
         },
@@ -1568,7 +1568,7 @@ describe("Dynamo Pipeline", () => {
           );
 
           const result = await query.all();
-          const request = spy.calls[0]![0]; // eslint-disable-line
+          const request = spy.calls[0]![0].input; // eslint-disable-line
           expect(request.KeyConditionExpression?.indexOf("BETWEEN :v1 AND :v2")).toBeGreaterThan(-1);
           expect(result.length).toEqual(12);
         },

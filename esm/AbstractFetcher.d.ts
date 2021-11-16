@@ -1,4 +1,4 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBDocumentClient as DocumentClient } from "@aws-sdk/lib-dynamodb";
 export declare abstract class AbstractFetcher<T> {
     protected activeRequests: Promise<any>[];
     protected bufferSize: number;
@@ -16,7 +16,7 @@ export declare abstract class AbstractFetcher<T> {
         limit?: number;
     });
     abstract fetchStrategy(): Promise<void> | null;
-    abstract processResult(data: Record<string, any>): void;
+    abstract processResult(data: any): void;
     protected fetchNext(): Promise<void> | null;
     private setupFetchProcessor;
     execute(): AsyncGenerator<T[], {

@@ -1,9 +1,9 @@
-import DynamoDB from "aws-sdk/clients/dynamodb";
+import { AttributeMap } from "./ScanQueryPipeline";
 
 interface IteratorExecutor<T> {
   execute(): AsyncGenerator<T[], { lastEvaluatedKey: Record<string, unknown> } | void, void>;
 }
-export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
+export class TableIterator<T = AttributeMap, P = undefined> {
   private lastEvaluatedKeyHandlers: Array<(k: Record<string, unknown>) => void> = [];
   config: {
     parent: P;

@@ -1,4 +1,5 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { conditionToDynamo, skQueryToDynamoString } from "./helpers";
 import { QueryFetcher } from "./QueryFetcher";
 import { TableIterator } from "./TableIterator";
@@ -22,7 +23,7 @@ export class ScanQueryPipeline {
             // class are too long
             keys: keys,
             index: index,
-            client: (config && config.client) || new DocumentClient(),
+            client: (config && config.client) || DynamoDBDocumentClient.from(new DynamoDBClient({})),
         };
         this.unprocessedItems = [];
         return this;

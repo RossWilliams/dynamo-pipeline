@@ -1,4 +1,4 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import { DynamoDBDocumentClient as DocumentClient } from "@aws-sdk/lib-dynamodb";
 import { Key, KeyDefinition } from "./types";
 declare type BatchWriteItems<KD extends KeyDefinition> = {
     tableName: string;

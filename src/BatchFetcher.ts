@@ -1,4 +1,12 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import {
+  BatchGetCommand,
+  DynamoDBDocumentClient as DocumentClient,
+  TransactGetCommand,
+  BatchGetCommandOutput,
+  TransactGetCommandOutput,
+  TransactGetCommandInput,
+  BatchGetCommandInput,
+} from "@aws-sdk/lib-dynamodb";
 import { Key, KeyDefinition } from "./types";
 import { AbstractFetcher } from "./AbstractFetcher";
 
@@ -84,7 +92,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
         return null;
       }
 
-      promise = this.documentClient.transactGet(transactionRequest).promise();
+      promise = this.documentClient.send(new TransactGetCommand(transactionRequest));
     } else if (this.operation === "batchGet") {
       const batchGetRequest = this.createBatchGetRequest();
 
@@ -93,7 +101,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
         return null;
       }
 
-      promise = this.documentClient.batchGet(batchGetRequest).promise();
+      promise = this.documentClient.send(new BatchGetCommand(batchGetRequest));
     }
 
     if (typeof this.nextToken === "number" && typeof this.chunks[this.nextToken + 1] !== "undefined") {
@@ -105,7 +113,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     return promise;
   }
 
-  processResult(data: DocumentClient.BatchGetItemOutput | DocumentClient.TransactGetItemsOutput | void): void {
+  processResult(data: BatchGetCommandOutput | TransactGetCommandOutput | void): void {
     let responseItems: ReturnType[] = [];
     if (data && data.Responses && Array.isArray(data.Responses)) {
       // transaction
@@ -150,7 +158,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     return super.isDone() && (!this.retryKeys || this.retryKeys.length === 0);
   }
 
-  private createTransactionRequest(): DocumentClient.TransactGetItemsInput | null {
+  private createTransactionRequest(): TransactGetCommandInput | null {
     const currentChunk: TransactGetItems<KD> | undefined =
       typeof this.nextToken === "number"
         ? (this.chunks[this.nextToken] as TransactGetItems<KD> | undefined)
@@ -174,7 +182,7 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
   }
 
   // each batch handles a single table for now...
-  private createBatchGetRequest(): DocumentClient.BatchGetItemInput | null {
+  private createBatchGetRequest(): BatchGetCommandInput | null {
     const currentChunk: BatchGetItems<KD> | undefined =
       typeof this.nextToken === "number" ? (this.chunks[this.nextToken] as BatchGetItems<KD> | undefined) : undefined;
 
