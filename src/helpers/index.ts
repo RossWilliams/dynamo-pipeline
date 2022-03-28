@@ -63,10 +63,12 @@ export function conditionToDynamo(
       result.ExpressionAttributeNames[name] = value;
     });
 
-    (Object.entries<Scalar>({
-      ...logicalRhs.ExpressionAttributeValues,
-      ...logicalLhs.ExpressionAttributeValues,
-    }) as [DynamoConditionAttributeValue, Scalar][]).forEach(([name, value]) => {
+    (
+      Object.entries<Scalar>({
+        ...logicalRhs.ExpressionAttributeValues,
+        ...logicalLhs.ExpressionAttributeValues,
+      }) as [DynamoConditionAttributeValue, Scalar][]
+    ).forEach(([name, value]) => {
       if (!result.ExpressionAttributeValues) {
         result.ExpressionAttributeValues = {};
       }

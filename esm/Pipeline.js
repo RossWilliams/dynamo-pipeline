@@ -110,18 +110,27 @@ export class Pipeline extends ScanQueryPipeline {
         return this.put(item, pkCondition);
     }
     buildUpdateRequest(key, attributes, options) {
-        const expression = Object.keys(attributes)
-            .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
+        const attributesToUpdate = Object.entries(attributes).filter(([_key, val]) => val !== undefined);
+        const attributesToRemove = Object.entries(attributes).filter(([_key, val]) => val === undefined);
+        const setExpression = attributesToUpdate
+            .map(([k, _v]) => `#${k.replace(/[#.:]/g, "")} = :${k.replace(/[#.:]/g, "")}`)
             .join(", ");
-        const expressionNames = Object.keys(attributes).reduce((acc, curr) => ({ ...acc, ["#" + curr.replace(/#/g, "")]: curr }), {});
-        const expressionValues = Object.entries(attributes).reduce((acc, curr) => ({
+        const removeExpression = attributesToRemove.map(([k, _v]) => `#${k.replace(/[#.:]/g, "")}`).join(", ");
+        const expressionNames = Object.keys(attributes).reduce((acc, curr) => ({ ...acc, ["#" + curr.replace(/[#.:]/g, "")]: curr }), {});
+        const expressionValues = attributesToUpdate.reduce((acc, curr) => ({
             ...acc,
-            [":" + curr[0].replace(/\.:#/g, "")]: curr[1],
+            [":" + curr[0].replace(/[#.:]/g, "")]: curr[1],
         }), {});
+        const updateExpression = [
+            setExpression.length ? `SET ${setExpression}` : "",
+            removeExpression.length ? `REMOVE ${removeExpression}` : "",
+        ]
+            .filter((i) => i === null || i === void 0 ? void 0 : i.length)
+            .join(", ");
         const request = {
             TableName: this.config.table,
             Key: this.keyAttributesOnly(key, this.config.keys),
-            UpdateExpression: `SET ${expression}`,
+            UpdateExpression: updateExpression,
             ...(Object.keys(expressionNames).length > 0 && {
                 ExpressionAttributeNames: expressionNames,
             }),
