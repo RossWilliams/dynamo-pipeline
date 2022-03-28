@@ -179,32 +179,46 @@ export class Pipeline<
 
   buildUpdateRequest(
     key: Key<KD>,
-    attributes: Record<string, PrimitiveType>,
+    attributes: Record<string, PrimitiveType | undefined>,
     options?: {
       condition?: ConditionExpression;
       returnType?: UpdateReturnValues;
     }
   ): DocumentClient.UpdateItemInput & { UpdateExpression: string } {
-    const expression = Object.keys(attributes)
-      .map((k) => `#${k.replace(/#\.:/g, "")} = :${k.replace(/#\./g, "")}`)
+    const attributesToUpdate = Object.entries(attributes).filter(([_key, val]) => val !== undefined);
+
+    const attributesToRemove = Object.entries(attributes).filter(([_key, val]) => val === undefined);
+
+    const setExpression = attributesToUpdate
+      .map(([k, _v]) => `#${k.replace(/[#.:]/g, "")} = :${k.replace(/[#.:]/g, "")}`)
       .join(", ");
+    const removeExpression = attributesToRemove.map(([k, _v]) => `#${k.replace(/[#.:]/g, "")}`).join(", ");
+
     const expressionNames = Object.keys(attributes).reduce(
-      (acc, curr) => ({ ...acc, ["#" + curr.replace(/#/g, "")]: curr }),
+      (acc, curr) => ({ ...acc, ["#" + curr.replace(/[#.:]/g, "")]: curr }),
       {}
     );
 
-    const expressionValues = Object.entries(attributes).reduce(
+    const expressionValues = attributesToUpdate.reduce(
       (acc, curr) => ({
         ...acc,
-        [":" + curr[0].replace(/\.:#/g, "")]: curr[1],
+        [":" + curr[0].replace(/[#.:]/g, "")]: curr[1],
       }),
       {}
     );
+
+    const updateExpression = [
+      setExpression.length ? `SET ${setExpression}` : "",
+      removeExpression.length ? `REMOVE ${removeExpression}` : "",
+    ]
+      .filter((i) => i?.length)
+      .join(", ");
+
     const request: DocumentClient.UpdateItemInput & { UpdateExpression: string } = {
       TableName: this.config.table,
       Key: this.keyAttributesOnly(key, this.config.keys),
 
-      UpdateExpression: `SET ${expression}`,
+      UpdateExpression: updateExpression,
       ...(Object.keys(expressionNames).length > 0 && {
         ExpressionAttributeNames: expressionNames,
       }),
@@ -234,7 +248,7 @@ export class Pipeline<
 
   update<T extends DocumentClient.AttributeMap>(
     key: Key<KD>,
-    attributes: Record<string, PrimitiveType>,
+    attributes: Record<string, PrimitiveType | undefined>,
     options?: {
       condition?: ConditionExpression;
       returnType?: UpdateReturnValues;

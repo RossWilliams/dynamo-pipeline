@@ -550,6 +550,32 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
+      "Update item with undefined attribute removes the item",
+      mockUpdate(
+        async (client, spy) => {
+          const pipeline = new Pipeline(
+            TEST_TABLE,
+            { pk: "id", sk: "sk" },
+            {
+              client,
+            }
+          );
+          const result = await pipeline.update({ id: "update:1", sk: "1" }, { other: undefined, new: 2 });
+
+          const input = spy.calls[0]?.[0] || ({} as Record<string, any>); // eslint-disable-line
+          expect(result).toStrictEqual({ new: 2 });
+          expect(input.UpdateExpression).toEqual("SET #new = :new, REMOVE #other");
+          expect(input.ExpressionAttributeNames).toStrictEqual({
+            "#other": "other",
+            "#new": "new",
+          });
+          expect(input.ExpressionAttributeValues).toStrictEqual({ ":new": 2 });
+        },
+        { data: { Attributes: { new: 2 } } }
+      )
+    );
+
+    test(
       "Update item with invalid condition does not update item",
       mockUpdate(
         async (client, spy) => {
