@@ -126,7 +126,7 @@ export class Pipeline extends ScanQueryPipeline {
             removeExpression.length ? `REMOVE ${removeExpression}` : "",
         ]
             .filter((i) => i === null || i === void 0 ? void 0 : i.length)
-            .join(", ");
+            .join(" ");
         const request = {
             TableName: this.config.table,
             Key: this.keyAttributesOnly(key, this.config.keys),

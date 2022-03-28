@@ -564,7 +564,7 @@ describe("Dynamo Pipeline", () => {
 
           const input = spy.calls[0]?.[0] || ({} as Record<string, any>); // eslint-disable-line
           expect(result).toStrictEqual({ new: 2 });
-          expect(input.UpdateExpression).toEqual("SET #new = :new, REMOVE #other");
+          expect(input.UpdateExpression).toEqual("SET #new = :new REMOVE #other");
           expect(input.ExpressionAttributeNames).toStrictEqual({
             "#other": "other",
             "#new": "new",

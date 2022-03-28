@@ -1,6 +1,6 @@
 {
   "name": "dynamo-pipeline",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Alternative API for DynamoDB's DocumentClient",
   "main": "lib/index.js",
   "module": "esm/index.js",

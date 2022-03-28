@@ -212,7 +212,7 @@ export class Pipeline<
       removeExpression.length ? `REMOVE ${removeExpression}` : "",
     ]
       .filter((i) => i?.length)
-      .join(", ");
+      .join(" ");
 
     const request: DocumentClient.UpdateItemInput & { UpdateExpression: string } = {
       TableName: this.config.table,
