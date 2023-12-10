@@ -1,6 +1,6 @@
 # dynamo-pipeline
 
-Alternative API for DynamoDB DocumentClient to improve types, allow easy iteration and paging of data, and reduce developer mistakes. From "So complex there are no obvious mistakes" to "So simple there are obviously no mistakes".
+Alternative API for DynamoDB DocumentClient (v2) to improve types, allow easy iteration and paging of data, and reduce developer mistakes. From "So complex there are no obvious mistakes" to "So simple there are obviously no mistakes".
 
 5KB gzipped (excluding aws-sdk DocumentClient).
 
