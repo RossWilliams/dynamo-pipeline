@@ -18,12 +18,13 @@
   "license": "Apache-2.0",
   "private": false,
   "scripts": {
-    "build": "rm -rf lib && rm -rf esm && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
+    "clean": "rm -rf lib && rm -rf esm && rm -rf .buildcache",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
     "build:watch": "tsc --build --watch",
     "test": "NODE_ENV=test jest",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:dynamodb": "TEST_WITH_DYNAMO=true NODE_ENV=test jest",
-    "lint": "eslint . --cache --cache-location '.buildcache/' --fix",
+    "lint": "eslint . --cache --cache-location '.buildcache/lint/' --fix",
     "format": "prettier . --write",
     "types": "tsc --noEmit --pretty",
     "prepare": "husky install"

@@ -5,6 +5,7 @@
     "moduleResolution": "node",
     "declaration": true,
     "incremental": true,
+    "tsBuildInfoFile": "./.buildcache/esm.tsbuildinfo",
     "types": ["jest", "node"],
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
