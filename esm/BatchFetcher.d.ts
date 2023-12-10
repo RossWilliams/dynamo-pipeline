@@ -1,11 +1,11 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Key, KeyDefinition } from "./types";
 import { AbstractFetcher } from "./AbstractFetcher";
-declare type BatchGetItems<KD extends KeyDefinition> = {
+type BatchGetItems<KD extends KeyDefinition> = {
     tableName: string;
     keys: Key<KD>[];
 };
-declare type TransactGetItems<KD extends KeyDefinition> = {
+type TransactGetItems<KD extends KeyDefinition> = {
     tableName: string;
     keys: Key<KD>;
 }[];

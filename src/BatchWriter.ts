@@ -1,7 +1,10 @@
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Key, KeyDefinition } from "./types";
 
-type BatchWriteItems<KD extends KeyDefinition> = { tableName: string; records: Key<KD>[] };
+type BatchWriteItems<KD extends KeyDefinition> = {
+  tableName: string;
+  records: Key<KD>[];
+};
 
 export class BatchWriter<KD extends KeyDefinition> {
   private client: DocumentClient;

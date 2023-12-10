@@ -1,3 +1,4 @@
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import AWS from "aws-sdk";
 import AWSMock from "aws-sdk-mock";
 let mockOn = true;
@@ -7,8 +8,7 @@ export function setMockOn(on) {
 export function multiMock(fn, mockSet) {
     return async () => {
         const spies = mockSet.map((ms) => setupMock(ms.name, ms.returns, true, ms.delay).mock);
-        // eslint-disable-next-line
-        const client = new AWS.DynamoDB.DocumentClient();
+        const client = new DocumentClient();
         await fn(client, spies);
         mockSet.forEach((ms) => teardownMock(ms.name, true));
     };
@@ -54,7 +54,7 @@ function mockCall(name, fn, returns = {}, alwaysMock = false, delay) {
         const spy = setupMock(name, returns, alwaysMock, delay);
         // TODO: Type cleanup
         // eslint-disable-next-line
-        const client = new AWS.DynamoDB.DocumentClient();
+        const client = new DocumentClient();
         if (!mockOn && !alwaysMock) {
             // TODO: Type cleanup
             await fn(client, jest.spyOn(client, name).mock);
@@ -71,26 +71,26 @@ function setupMock(name, returns = {}, alwaysMock, delay) {
     if (mockOn || alwaysMock) {
         AWSMock.setSDKInstance(AWS);
         AWSMock.mock("DynamoDB.DocumentClient", name, function (input, callback) {
-            var _a, _b;
+            var _a, _b, _c, _d;
             spy(input);
             if (Array.isArray(returns)) {
                 if (typeof delay === "number") {
                     setTimeout(() => {
-                        var _a, _b;
-                        callback((_a = returns[callCount]) === null || _a === void 0 ? void 0 : _a.err, (_b = returns[callCount]) === null || _b === void 0 ? void 0 : _b.data);
+                        var _a, _b, _c;
+                        callback((_b = (_a = returns[callCount]) === null || _a === void 0 ? void 0 : _a.err) !== null && _b !== void 0 ? _b : undefined, (_c = returns[callCount]) === null || _c === void 0 ? void 0 : _c.data);
                         callCount += 1;
                     }, delay);
                 }
                 else {
-                    callback((_a = returns[callCount]) === null || _a === void 0 ? void 0 : _a.err, (_b = returns[callCount]) === null || _b === void 0 ? void 0 : _b.data);
+                    callback((_b = (_a = returns[callCount]) === null || _a === void 0 ? void 0 : _a.err) !== null && _b !== void 0 ? _b : undefined, (_c = returns[callCount]) === null || _c === void 0 ? void 0 : _c.data);
                     callCount += 1;
                 }
             }
             else if (typeof delay === "number") {
-                setTimeout(() => callback(returns === null || returns === void 0 ? void 0 : returns.err, returns === null || returns === void 0 ? void 0 : returns.data), delay);
+                setTimeout(() => { var _a; return callback((_a = returns === null || returns === void 0 ? void 0 : returns.err) !== null && _a !== void 0 ? _a : undefined, returns === null || returns === void 0 ? void 0 : returns.data); }, delay);
             }
             else {
-                callback(returns === null || returns === void 0 ? void 0 : returns.err, returns === null || returns === void 0 ? void 0 : returns.data);
+                callback((_d = returns === null || returns === void 0 ? void 0 : returns.err) !== null && _d !== void 0 ? _d : undefined, returns === null || returns === void 0 ? void 0 : returns.data);
             }
         });
     }

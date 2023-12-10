@@ -1,4 +1,4 @@
-import { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
+import { DocumentClient } from "aws-sdk/clients/dynamodb";
 
 export abstract class AbstractFetcher<T> {
   protected activeRequests: Promise<any>[] = [];
@@ -58,10 +58,12 @@ export abstract class AbstractFetcher<T> {
     return promise
       .then((data) => {
         this.activeRequests = this.activeRequests.filter((r) => r !== promise);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         this.processResult(data);
       })
       .catch((e) => {
         this.activeRequests = this.activeRequests.filter((r) => r !== promise);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         this.processError(e);
       });
   }

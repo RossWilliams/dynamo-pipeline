@@ -2,8 +2,14 @@ import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Key, KeyDefinition } from "./types";
 import { AbstractFetcher } from "./AbstractFetcher";
 
-type BatchGetItems<KD extends KeyDefinition> = { tableName: string; keys: Key<KD>[] };
-type TransactGetItems<KD extends KeyDefinition> = { tableName: string; keys: Key<KD> }[];
+type BatchGetItems<KD extends KeyDefinition> = {
+  tableName: string;
+  keys: Key<KD>[];
+};
+type TransactGetItems<KD extends KeyDefinition> = {
+  tableName: string;
+  keys: Key<KD>;
+}[];
 
 export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends AbstractFetcher<ReturnType> {
   protected operation: "batchGet" | "transactGet";
@@ -44,7 +50,10 @@ export class BatchGetFetcher<ReturnType, KD extends KeyDefinition> extends Abstr
     const n = items.keys.length;
     let i = 0;
     while (i < n) {
-      chunks.push({ tableName: items.tableName, keys: items.keys.slice(i, (i += this.batchSize)) });
+      chunks.push({
+        tableName: items.tableName,
+        keys: items.keys.slice(i, (i += this.batchSize)),
+      });
     }
 
     return chunks;

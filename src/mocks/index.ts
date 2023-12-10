@@ -1,4 +1,4 @@
-import { DocumentClient } from "aws-sdk/clients/dynamodb";
+import DynamoDB, { DocumentClient } from "aws-sdk/clients/dynamodb";
 import AWS from "aws-sdk";
 import { Request } from "aws-sdk/lib/request";
 import AWSMock from "aws-sdk-mock";
@@ -13,8 +13,18 @@ export function setMockOn(on: boolean): void {
   mockOn = on;
 }
 
+type DynamoClientCommandName =
+  | "scan"
+  | "query"
+  | "delete"
+  | "update"
+  | "put"
+  | "batchGet"
+  | "batchWrite"
+  | "transactGet";
+
 interface MockSet<TOutput = Record<string, unknown>> {
-  name: "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
+  name: DynamoClientCommandName;
   returns?: MockReturn<TOutput>;
   delay?: number;
 }
@@ -25,10 +35,11 @@ export function multiMock(
 ): () => Promise<void> {
   return async () => {
     const spies = mockSet.map((ms) => setupMock(ms.name, ms.returns, true, ms.delay).mock);
-    // eslint-disable-next-line
-    const client = new (AWS as any).DynamoDB.DocumentClient();
+
+    const client = new DocumentClient();
 
     await fn(client, spies);
+
     mockSet.forEach((ms) => teardownMock(ms.name, true));
   };
 }
@@ -126,7 +137,7 @@ export function mockTransactGet(
 }
 
 function mockCall<TInput, TOutput>(
-  name: string,
+  name: DynamoClientCommandName,
   fn: WrappedFn<TInput, TOutput>,
   returns: MockReturn<TOutput> = {},
   alwaysMock = false,
@@ -137,14 +148,11 @@ function mockCall<TInput, TOutput>(
 
     // TODO: Type cleanup
     // eslint-disable-next-line
-    const client = new (AWS as any).DynamoDB.DocumentClient();
+    const client = new DocumentClient();
 
     if (!mockOn && !alwaysMock) {
       // TODO: Type cleanup
-      await fn(
-        client,
-        jest.spyOn<{ method: (arg0: TInput) => Request<TOutput, Error> }, "method">(client, name as "method").mock
-      );
+      await fn(client, jest.spyOn(client, name).mock as unknown as Spy<TInput, TOutput>);
     } else {
       await fn(client, spy.mock);
     }
@@ -154,7 +162,7 @@ function mockCall<TInput, TOutput>(
 }
 
 function setupMock<TInput, TOutput>(
-  name: string,
+  name: keyof DynamoDB.DocumentClient,
   returns: MockReturn<TOutput> = {},
   alwaysMock: boolean,
   delay?: number
@@ -168,17 +176,17 @@ function setupMock<TInput, TOutput>(
       if (Array.isArray(returns)) {
         if (typeof delay === "number") {
           setTimeout(() => {
-            callback(returns[callCount]?.err, returns[callCount]?.data);
+            callback(returns[callCount]?.err ?? undefined, returns[callCount]?.data);
             callCount += 1;
           }, delay);
         } else {
-          callback(returns[callCount]?.err, returns[callCount]?.data);
+          callback(returns[callCount]?.err ?? undefined, returns[callCount]?.data);
           callCount += 1;
         }
       } else if (typeof delay === "number") {
-        setTimeout(() => callback(returns?.err, returns?.data), delay);
+        setTimeout(() => callback(returns?.err ?? undefined, returns?.data), delay);
       } else {
-        callback(returns?.err, returns?.data);
+        callback(returns?.err ?? undefined, returns?.data);
       }
     });
   }
@@ -186,7 +194,7 @@ function setupMock<TInput, TOutput>(
   return spy;
 }
 
-function teardownMock(name: string, alwaysMock?: boolean) {
+function teardownMock(name: keyof DynamoDB.DocumentClient, alwaysMock?: boolean) {
   if (mockOn || alwaysMock) {
     AWSMock.restore("DynamoDB.DocumentClient", name);
   }

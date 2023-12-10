@@ -21,7 +21,7 @@ export class ScanQueryPipeline {
             // shortcut to use KD, otherwise type definitions throughout the
             // class are too long
             keys: keys,
-            index: index,
+            index,
             client: (config && config.client) || new DocumentClient(),
         };
         this.unprocessedItems = [];
@@ -72,7 +72,7 @@ export class ScanQueryPipeline {
             }),
             ...(this.config.index && { IndexName: this.config.index }),
             ...(options.keyConditions && {
-                KeyConditionExpression: `#p0 = :v0` + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
+                KeyConditionExpression: "#p0 = :v0" + (skValue ? ` AND ${skQueryToDynamoString(skValue)}` : ""),
             }),
             ConsistentRead: Boolean(options.consistentRead),
             ScanIndexForward: Boolean(!options.sortDescending),

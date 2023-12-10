@@ -100,9 +100,14 @@ describe("Dynamo Pipeline", () => {
               client,
             }
           );
-          await pipeline.putIfNotExists({ id: "put:1", sk: "1", other: ["item", null], nullish: true });
+          await pipeline.putIfNotExists({
+            id: "put:1",
+            sk: "1",
+            other: ["item", null],
+            nullish: true,
+          });
           expect(pipeline.unprocessedItems.length).toEqual(1);
-          const unprocessedItems = [];
+          const unprocessedItems: Record<string, unknown>[] = [];
           pipeline.handleUnprocessed((i) => unprocessedItems.push(i));
           expect(unprocessedItems.length).toEqual(1);
         },
@@ -170,7 +175,11 @@ describe("Dynamo Pipeline", () => {
             logical: "AND",
             rhs: {
               logical: "NOT",
-              rhs: { operator: "attribute_type", lhs: "other", rhs: { value: "S" } },
+              rhs: {
+                operator: "attribute_type",
+                lhs: "other",
+                rhs: { value: "S" },
+              },
             },
           }
         );
@@ -195,7 +204,12 @@ describe("Dynamo Pipeline", () => {
       mockPut(async (client, spy) => {
         const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
 
-        await pipeline.putIfNotExists({ id: "put:4", sk: "4", other: ["item"], nullish: null });
+        await pipeline.putIfNotExists({
+          id: "put:4",
+          sk: "4",
+          other: ["item"],
+          nullish: null,
+        });
         const input = spy.calls[0]![0]; // eslint-disable-line
         expect(Object.keys(input.ExpressionAttributeNames || {}).length).toEqual(1);
         expect(Object.values(input.ExpressionAttributeNames || {})).toStrictEqual(["id"]);
@@ -453,14 +467,26 @@ describe("Dynamo Pipeline", () => {
           {
             data: {
               UnprocessedItems: {
-                [TEST_TABLE]: [{ PutRequest: { Item: { id: "putMany:bad2", sk: "2", other: 1 } } }],
+                [TEST_TABLE]: [
+                  {
+                    PutRequest: {
+                      Item: { id: "putMany:bad2", sk: "2", other: 1 },
+                    },
+                  },
+                ],
               },
             },
           },
           {
             data: {
               UnprocessedItems: {
-                [TEST_TABLE]: [{ PutRequest: { Item: { id: "putMany:bad2", sk: "2", other: 1 } } }],
+                [TEST_TABLE]: [
+                  {
+                    PutRequest: {
+                      Item: { id: "putMany:bad2", sk: "2", other: 1 },
+                    },
+                  },
+                ],
               },
             },
           },
@@ -543,7 +569,10 @@ describe("Dynamo Pipeline", () => {
             "#p1": "other",
             "#other": "other",
           });
-          expect(input.ExpressionAttributeValues).toStrictEqual({ ":other": 4, ":v1": 0 });
+          expect(input.ExpressionAttributeValues).toStrictEqual({
+            ":other": 4,
+            ":v1": 0,
+          });
         },
         { data: { Attributes: { other: 4 } } }
       )
@@ -560,10 +589,14 @@ describe("Dynamo Pipeline", () => {
               client,
             }
           );
-          const result = await pipeline.update({ id: "update:1", sk: "1" }, { other: undefined, new: 2 });
+          const result = await pipeline.update(
+            { id: "update:1", sk: "1" },
+            { other: undefined, new: 2 },
+            { returnType: "ALL_NEW" }
+          );
 
           const input = spy.calls[0]?.[0] || ({} as Record<string, any>); // eslint-disable-line
-          expect(result).toStrictEqual({ new: 2 });
+          expect(result).toStrictEqual({ id: "update:1", sk: "1", new: 2 });
           expect(input.UpdateExpression).toEqual("SET #new = :new REMOVE #other");
           expect(input.ExpressionAttributeNames).toStrictEqual({
             "#other": "other",
@@ -571,7 +604,7 @@ describe("Dynamo Pipeline", () => {
           });
           expect(input.ExpressionAttributeValues).toStrictEqual({ ":new": 2 });
         },
-        { data: { Attributes: { new: 2 } } }
+        { data: { Attributes: { new: 2, id: "update:1", sk: "1" } } }
       )
     );
 
@@ -662,7 +695,10 @@ describe("Dynamo Pipeline", () => {
           );
           const result = await pipeline.delete(
             { id: "delete:2", sk: "2" },
-            { condition: { lhs: "other", operator: ">", rhs: { value: 0 } }, returnType: "ALL_OLD" }
+            {
+              condition: { lhs: "other", operator: ">", rhs: { value: 0 } },
+              returnType: "ALL_OLD",
+            }
           );
 
           const input = spy.calls[0]![0]; // eslint-disable-line
@@ -690,7 +726,10 @@ describe("Dynamo Pipeline", () => {
           );
           const result = await pipeline.delete(
             { id: "delete:3", sk: "3" },
-            { condition: { lhs: "other", operator: "<", rhs: { value: 0 } }, reportError: true }
+            {
+              condition: { lhs: "other", operator: "<", rhs: { value: 0 } },
+              reportError: true,
+            }
           );
 
           const input = spy.calls[0]![0]; // eslint-disable-line
@@ -753,7 +792,10 @@ describe("Dynamo Pipeline", () => {
       mockScan(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const index = pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" });
+          const index = pipeline.createIndex("gsi1", {
+            pk: "gsi1pk",
+            sk: "gsi1sk",
+          });
 
           const results = await index.scan().all();
           expect(results.length).toEqual(2);
@@ -770,7 +812,11 @@ describe("Dynamo Pipeline", () => {
           type Data = { id: string; sk: string; other: string };
           const scanner = pipeline.scan<Data>({
             batchSize: 50,
-            filters: { property: "id", operator: "begins_with", value: "scan:" },
+            filters: {
+              property: "id",
+              operator: "begins_with",
+              value: "scan:",
+            },
           });
 
           const result = await scanner.all();
@@ -811,7 +857,12 @@ describe("Dynamo Pipeline", () => {
         },
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
-          { data: { Items: items.slice(50, 90), LastEvaluatedKey: { id: "1", sk: "2" } } },
+          {
+            data: {
+              Items: items.slice(50, 90),
+              LastEvaluatedKey: { id: "1", sk: "2" },
+            },
+          },
           { data: { Items: items.slice(90, 100) } },
         ]
       )
@@ -880,7 +931,9 @@ describe("Dynamo Pipeline", () => {
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
           { data: { Items: items.slice(50, 70), LastEvaluatedKey: { N: 2 } } },
-          { data: { Items: items.slice(70, 90), LastEvaluatedKey: { N: 100 } } },
+          {
+            data: { Items: items.slice(70, 90), LastEvaluatedKey: { N: 100 } },
+          },
           { data: { Items: items.slice(90, 100) } },
         ]
       )
@@ -921,7 +974,9 @@ describe("Dynamo Pipeline", () => {
           { data: { Items: items.slice(60, 70), LastEvaluatedKey: { N: 7 } } },
           { data: { Items: items.slice(70, 80), LastEvaluatedKey: { N: 8 } } },
           { data: { Items: items.slice(80, 90), LastEvaluatedKey: { N: 9 } } },
-          { data: { Items: items.slice(90, 100), LastEvaluatedKey: { N: 10 } } },
+          {
+            data: { Items: items.slice(90, 100), LastEvaluatedKey: { N: 10 } },
+          },
         ],
         1
       )
@@ -1195,9 +1250,7 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(4);
 
-          const all = await pipeline
-            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
-            .all();
+          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 }).all();
 
           expect(all.length).toEqual(100);
           expect(pipeline.unprocessedItems.length).toEqual(0);
@@ -1205,7 +1258,11 @@ describe("Dynamo Pipeline", () => {
         },
         [
           { data: { Responses: { [TEST_TABLE]: items.slice(0, 20) } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 40) } } } },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 40) } },
+            },
+          },
           { data: { Responses: { [TEST_TABLE]: items.slice(40, 60) } } },
           { data: { Responses: { [TEST_TABLE]: items.slice(60, 80) } } },
           { data: { Responses: { [TEST_TABLE]: items.slice(80, 100) } } },
@@ -1221,9 +1278,7 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(4);
 
-          const all = await pipeline
-            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
-            .all();
+          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 }).all();
 
           expect(all.length).toEqual(80);
           expect(pipeline.unprocessedItems.length).toEqual(20);
@@ -1231,12 +1286,24 @@ describe("Dynamo Pipeline", () => {
         },
         [
           { data: { Responses: { [TEST_TABLE]: items.slice(0, 20) } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 40) } } } },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 40) } },
+            },
+          },
           { data: { Responses: { [TEST_TABLE]: items.slice(40, 60) } } },
           { data: { Responses: { [TEST_TABLE]: items.slice(60, 80) } } },
           { data: { Responses: { [TEST_TABLE]: items.slice(80, 100) } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 30) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(30, 40) } } } },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 30) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(30, 40) } },
+            },
+          },
         ]
       )
     );
@@ -1247,9 +1314,7 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
 
-          const all = await pipeline
-            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
-            .all();
+          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 }).all();
 
           expect(all.length).toEqual(100);
           expect(pipeline.unprocessedItems.length).toEqual(0);
@@ -1278,9 +1343,7 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
 
-          const all = await pipeline
-            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
-            .all();
+          const all = await pipeline.getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 }).all();
 
           expect(all.length).toEqual(98);
           expect(pipeline.unprocessedItems.length).toEqual(2);
@@ -1314,16 +1377,14 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
           let index = 0;
-          await pipeline
-            .getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 })
-            .forEach(() => {
-              if (index === 39) {
-                expect(spy.calls.length).toEqual(4);
-              } else if (index === 40) {
-                expect(spy.calls.length).toEqual(5);
-              }
-              index += 1;
-            });
+          await pipeline.getItems<{ other: string }>(items.slice(0, 100), { batchSize: 20 }).forEach(() => {
+            if (index === 39) {
+              expect(spy.calls.length).toEqual(4);
+            } else if (index === 40) {
+              expect(spy.calls.length).toEqual(5);
+            }
+            index += 1;
+          });
 
           expect(spy.calls.length).toEqual(5);
         },
@@ -1343,28 +1404,74 @@ describe("Dynamo Pipeline", () => {
       alwaysMockBatchGet(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
-          const result = await pipeline
-            .getItems<{ other: string }>(items.slice(0, 120), { batchSize: 20 })
-            .all();
+          const result = await pipeline.getItems<{ other: string }>(items.slice(0, 120), { batchSize: 20 }).all();
           expect(spy.calls.length).toEqual(14);
           expect(result.length).toEqual(40);
           expect(pipeline.unprocessedItems.length).toEqual(80);
         },
         [
           { data: { Responses: { [TEST_TABLE]: items.slice(0, 20) } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 40) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(40, 60) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(60, 80) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(80, 100) } } } },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 40) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(40, 60) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(60, 80) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(80, 100) } },
+            },
+          },
           { data: { Responses: { [TEST_TABLE]: items.slice(100, 120) } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 30) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(30, 40) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(40, 50) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(50, 60) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(60, 70) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(70, 80) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(80, 90) } } } },
-          { data: { UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(90, 100) } } } },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(20, 30) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(30, 40) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(40, 50) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(50, 60) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(60, 70) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(70, 80) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(80, 90) } },
+            },
+          },
+          {
+            data: {
+              UnprocessedKeys: { [TEST_TABLE]: { Keys: items.slice(90, 100) } },
+            },
+          },
         ],
         10
       )
@@ -1376,9 +1483,7 @@ describe("Dynamo Pipeline", () => {
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBuffer(2);
 
-          const result = await pipeline
-            .getItems<{ other: string }>(items.slice(0, 20), { batchSize: 20 })
-            .all();
+          const result = await pipeline.getItems<{ other: string }>(items.slice(0, 20), { batchSize: 20 }).all();
 
           expect(spy.calls.length).toEqual(1);
           expect(result.length).toEqual(0);
@@ -1450,8 +1555,16 @@ describe("Dynamo Pipeline", () => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
           const result = await pipeline
             .transactGet<{ other: string }>([
-              { tableName: TEST_TABLE, keys: { id: "transactGet:1", sk: "1" }, keyDefinition: { pk: "id", sk: "sk" } },
-              { tableName: TEST_TABLE, keys: { id: "transactGet:2", sk: "2" }, keyDefinition: { pk: "id", sk: "sk" } },
+              {
+                tableName: TEST_TABLE,
+                keys: { id: "transactGet:1", sk: "1" },
+                keyDefinition: { pk: "id", sk: "sk" },
+              },
+              {
+                tableName: TEST_TABLE,
+                keys: { id: "transactGet:2", sk: "2" },
+                keyDefinition: { pk: "id", sk: "sk" },
+              },
             ])
             .all();
           expect(result.length).toEqual(2);
@@ -1513,11 +1626,16 @@ describe("Dynamo Pipeline", () => {
       mockQuery(
         async (client) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const result = await pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsisk" }).query({ gsi1pk: "1" }).all();
+          const result = await pipeline
+            .createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" })
+            .query({ gsi1pk: "1" })
+            .all();
           expect(result.length).toEqual(5000);
         },
         [
-          { data: { Items: items3.slice(0, 2500), LastEvaluatedKey: { N: 1 } } },
+          {
+            data: { Items: items3.slice(0, 2500), LastEvaluatedKey: { N: 1 } },
+          },
           { data: { Items: items3.slice(2500, 5000) } },
         ]
       )
@@ -1662,7 +1780,11 @@ describe("Dynamo Pipeline", () => {
               LastEvaluatedKey: { N: 1 },
             },
           },
-          { data: { Items: items.slice(50, 100).filter((_v, i) => i % 2 === 0) } },
+          {
+            data: {
+              Items: items.slice(50, 100).filter((_v, i) => i % 2 === 0),
+            },
+          },
         ]
       )
     );
@@ -1724,11 +1846,14 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "Query can use less than operator to receive a subselection",
+      "Query can use less than operator to receive a sub-selection",
       mockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const query = pipeline.query({ id: "query:1", sk: sortKey("between", "1", "2") });
+          const query = pipeline.query({
+            id: "query:1",
+            sk: sortKey("between", "1", "2"),
+          });
 
           const result: any[] = await query.all();
           expect(result.length).toEqual(12);
@@ -1758,11 +1883,14 @@ describe("Dynamo Pipeline", () => {
     );
 
     test(
-      "Query can use between operator to receive a subselection",
+      "Query can use between operator to receive a sub-selection",
       mockQuery(
         async (client, spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const query = pipeline.query({ id: "query:1", sk: sortKey("between", "2", "4") });
+          const query = pipeline.query({
+            id: "query:1",
+            sk: sortKey("between", "2", "4"),
+          });
 
           const result: any[] = await query.all();
           expect(result.length).toEqual(23);
@@ -1793,7 +1921,10 @@ describe("Dynamo Pipeline", () => {
       mockQuery(
         async (client, _spy) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client });
-          const index = pipeline.createIndex("gsi1", { pk: "gsi1pk", sk: "gsi1sk" });
+          const index = pipeline.createIndex("gsi1", {
+            pk: "gsi1pk",
+            sk: "gsi1sk",
+          });
           let results = await index.query({ gsi1pk: "queryIndex:1", gsi1sk: sortKey("=", "100") }).all();
 
           // if the GSI isn't yet up to date, wait and run again
@@ -1848,9 +1979,15 @@ describe("Dynamo Pipeline", () => {
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
           { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
-          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
-          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
-          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          {
+            data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } },
+          },
+          {
+            data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } },
+          },
+          {
+            data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } },
+          },
           { data: { Items: items.slice(250, 300) } },
         ]
       )
@@ -1880,9 +2017,15 @@ describe("Dynamo Pipeline", () => {
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
           { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
-          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
-          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
-          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          {
+            data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } },
+          },
+          {
+            data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } },
+          },
+          {
+            data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } },
+          },
           { data: { Items: items.slice(250, 300) } },
         ]
       )
@@ -1905,7 +2048,10 @@ describe("Dynamo Pipeline", () => {
             })
             .mapLazy((item, index) => {
               lazyCounter = index;
-              return { plusOneNum: parseInt(item.plusOne, 10), evenIsOne: item.evenIsOne };
+              return {
+                plusOneNum: parseInt(item.plusOne, 10),
+                evenIsOne: item.evenIsOne,
+              };
             })
             .forEach(async (item, index) => {
               await new Promise((resolve, reject) => setTimeout(resolve, 1));
@@ -1916,9 +2062,15 @@ describe("Dynamo Pipeline", () => {
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
           { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
-          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
-          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
-          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          {
+            data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } },
+          },
+          {
+            data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } },
+          },
+          {
+            data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } },
+          },
           { data: { Items: items.slice(250, 300) } },
         ]
       )
@@ -1944,9 +2096,15 @@ describe("Dynamo Pipeline", () => {
         [
           { data: { Items: items.slice(0, 50), LastEvaluatedKey: { N: 1 } } },
           { data: { Items: items.slice(50, 100), LastEvaluatedKey: { N: 2 } } },
-          { data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } } },
-          { data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } } },
-          { data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } } },
+          {
+            data: { Items: items.slice(100, 150), LastEvaluatedKey: { N: 3 } },
+          },
+          {
+            data: { Items: items.slice(150, 200), LastEvaluatedKey: { N: 4 } },
+          },
+          {
+            data: { Items: items.slice(200, 250), LastEvaluatedKey: { N: 5 } },
+          },
           { data: { Items: items.slice(250, 300) } },
         ]
       )
@@ -1970,7 +2128,9 @@ describe("Dynamo Pipeline", () => {
         },
         [
           { data: { Items: items.slice(0, 100), LastEvaluatedKey: { N: 1 } } },
-          { data: { Items: items.slice(100, 200), LastEvaluatedKey: { N: 2 } } },
+          {
+            data: { Items: items.slice(100, 200), LastEvaluatedKey: { N: 2 } },
+          },
           { data: { Items: items.slice(200, 300) } },
         ]
       )
@@ -1982,9 +2142,7 @@ describe("Dynamo Pipeline", () => {
         async (client) => {
           const pipeline = new Pipeline(TEST_TABLE, { pk: "id", sk: "sk" }, { client }).withReadBatchSize(50);
 
-          const iterator = pipeline
-            .query<{ plusOne: string }>({ id: "iterator:1" })
-            .strideIterator();
+          const iterator = pipeline.query<{ plusOne: string }>({ id: "iterator:1" }).strideIterator();
 
           let i = 0;
 

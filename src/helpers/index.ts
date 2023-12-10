@@ -73,8 +73,6 @@ export function conditionToDynamo(
         result.ExpressionAttributeValues = {};
       }
 
-      // @ts-expect-error:  Object.entries hard codes string as the key type
-      // and indexing by template strings is invalid in ts 4.2.0
       result.ExpressionAttributeValues[name] = value;
     });
 
@@ -98,10 +96,16 @@ export function conditionToDynamo(
 
   return {
     ...((Object.keys(names).length > 0 || Object.keys(result.ExpressionAttributeNames || {}).length > 0) && {
-      ExpressionAttributeNames: { ...names, ...result.ExpressionAttributeNames },
+      ExpressionAttributeNames: {
+        ...names,
+        ...result.ExpressionAttributeNames,
+      },
     }),
     ...((Object.keys(values).length > 0 || Object.keys(result.ExpressionAttributeValues || {}).length > 0) && {
-      ExpressionAttributeValues: { ...values, ...result.ExpressionAttributeValues },
+      ExpressionAttributeValues: {
+        ...values,
+        ...result.ExpressionAttributeValues,
+      },
     }),
     Condition: conditionString,
   };
@@ -114,8 +118,13 @@ export function skQueryToDynamoString(template: QueryTemplate): string {
     template[0] === "begins_with"
       ? { operator: template[0], property: "sk", value: template[1] }
       : template[0] === "between"
-      ? { operator: template[0], property: "sk", start: template[2], end: template[3] }
-      : { operator: template[0], lhs: "sk", rhs: { value: template[1] } };
+        ? {
+            operator: template[0],
+            property: "sk",
+            start: template[2],
+            end: template[3],
+          }
+        : { operator: template[0], lhs: "sk", rhs: { value: template[1] } };
 
   const result = conditionToConditionString(expression, 1, 1);
   return result;
@@ -165,6 +174,7 @@ function conditionToConditionString(
     case "=":
     case "<>":
       // TODO: fix any type
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return comparisonOperator(condition as any, nameStart, valueStart);
     case "begins_with":
     case "contains":
@@ -219,10 +229,10 @@ function setPropertyValue(value: PrimitiveType, values: { [key: string]: Primiti
   const dynamoValue = Array.isArray(value)
     ? value.join("")
     : typeof value === "boolean" || typeof value === "string" || typeof value === "number"
-    ? value
-    : value === null
-    ? true
-    : value?.toString() || true;
+      ? value
+      : value === null
+        ? true
+        : value?.toString() || true;
 
   return setRawPropertyValue(dynamoValue, values, countStart);
 }

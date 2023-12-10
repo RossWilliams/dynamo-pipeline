@@ -4,7 +4,7 @@ export async function ensureDatabaseExists(tableName: string): Promise<void> {
   const dynamodb = new DynamoDB();
   const tables = await dynamodb.listTables().promise();
   if (!tables || !tables.TableNames) {
-    throw new Error("Could not list account tables\n\n" + ((tables.$response.error as unknown) as string));
+    throw new Error("Could not list account tables\n\n" + (tables.$response.error as unknown as string));
   }
   if (!tables.TableNames?.includes(tableName)) {
     await dynamodb

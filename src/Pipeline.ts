@@ -10,7 +10,7 @@ import { ScanQueryPipeline, sortKey } from "./ScanQueryPipeline";
 export class Pipeline<
   PK extends string,
   SK extends string | undefined = undefined,
-  KD extends { pk: PK; sk: SK } = { pk: PK; sk: SK }
+  KD extends { pk: PK; sk: SK } = { pk: PK; sk: SK },
 > extends ScanQueryPipeline<PK, SK, KD> {
   constructor(
     tableName: string,
@@ -85,7 +85,11 @@ export class Pipeline<
 
   getItems<T = DocumentClient.AttributeMap>(
     keys: Key<KD>[],
-    options?: { batchSize?: number; bufferCapacity?: number; consistentRead?: boolean }
+    options?: {
+      batchSize?: number;
+      bufferCapacity?: number;
+      consistentRead?: boolean;
+    }
   ): TableIterator<T, this> {
     const handleUnprocessed = (keys: Key<KD>[]) => {
       this.unprocessedItems.push(...keys);
@@ -117,7 +121,11 @@ export class Pipeline<
 
   async putItems<I extends Key<KD>>(
     items: I[],
-    options?: { bufferCapacity?: number; disableSlowStart?: boolean; batchSize?: number }
+    options?: {
+      bufferCapacity?: number;
+      disableSlowStart?: boolean;
+      batchSize?: number;
+    }
   ): Promise<Pipeline<PK, SK>> {
     const handleUnprocessed = (keys: Key<KD>[]) => {
       this.unprocessedItems.push(...keys);
@@ -214,7 +222,9 @@ export class Pipeline<
       .filter((i) => i?.length)
       .join(" ");
 
-    const request: DocumentClient.UpdateItemInput & { UpdateExpression: string } = {
+    const request: DocumentClient.UpdateItemInput & {
+      UpdateExpression: string;
+    } = {
       TableName: this.config.table,
       Key: this.keyAttributesOnly(key, this.config.keys),
 

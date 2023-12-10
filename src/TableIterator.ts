@@ -5,6 +5,7 @@ interface IteratorExecutor<T> {
 }
 export class TableIterator<T = DynamoDB.AttributeMap, P = undefined> {
   private lastEvaluatedKeyHandlers: Array<(k: Record<string, unknown>) => void> = [];
+
   config: {
     parent: P;
     fetcher: IteratorExecutor<T>;

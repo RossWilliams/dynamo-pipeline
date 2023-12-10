@@ -1,23 +1,7 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "commonjs",
-    "target": "ES2019",
-    "moduleResolution": "node",
-    "declaration": true,
-    "incremental": true,
-    "types": ["jest", "node"],
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": false,
-    "noUncheckedIndexedAccess": true,
-    "alwaysStrict": true,
-    "strictNullChecks": true,
     "outDir": "lib"
-  },
-  "exclude": ["lib", "node_modules", "test"],
-  "include": ["src", "mocks"]
+  }
 }

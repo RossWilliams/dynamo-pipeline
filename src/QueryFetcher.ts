@@ -37,9 +37,14 @@ export class QueryFetcher<T> extends AbstractFetcher<T> {
     }
 
     const request = {
-      ...(this.request.Limit && { Limit: this.request.Limit - this.totalReturned }),
+      ...(this.request.Limit && {
+        Limit: this.request.Limit - this.totalReturned,
+      }),
       ...this.request,
-      ...(Boolean(this.nextToken) && typeof this.nextToken === "object" && { ExclusiveStartKey: this.nextToken }),
+      ...(Boolean(this.nextToken) &&
+        typeof this.nextToken === "object" && {
+          ExclusiveStartKey: this.nextToken,
+        }),
     };
 
     const promise = this.documentClient[this.operation](request).promise();

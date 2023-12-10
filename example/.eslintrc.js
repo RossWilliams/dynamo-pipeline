@@ -1,55 +1,56 @@
-{
-  "extends": [
+module.exports = {
+  extends: [
     "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
     "plugin:@typescript-eslint/recommended-requiring-type-checking",
     "standard",
-    "prettier"
+    "prettier",
   ],
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "prettier"],
-  "parserOptions": {
-    "project": "./tsconfig.json",
-    "ecmaVersion": 10,
-    "sourceType": "module"
+  parser: "@typescript-eslint/parser",
+  plugins: ["@typescript-eslint"],
+  parserOptions: {
+    tsconfigRootDir: __dirname,
+    project: "./tsconfig.json",
+    ecmaVersion: 10,
+    sourceType: "module",
   },
-  "env": {
-    "node": true,
-    "jest": true
+  env: {
+    node: true,
+    jest: true,
   },
-  "globals": {
-    "__DEV__": false,
-    "beforeAll": false,
-    "afterAll": false,
-    "beforeEach": false,
-    "afterEach": false,
-    "test": false,
-    "expect": false,
-    "describe": false,
-    "jest": false,
-    "it": false
+  globals: {
+    __DEV__: false,
+    beforeAll: false,
+    afterAll: false,
+    beforeEach: false,
+    afterEach: false,
+    test: false,
+    expect: false,
+    describe: false,
+    jest: false,
+    it: false,
   },
-  "ignorePatterns": ["**/node_modules/**/*", "node_modules/**/*", "dist/**/*"],
-  "rules": {
-    "complexity": ["warn", 30],
+  ignorePatterns: ["**/node_modules/**/*", "node_modules/**/*", "dist/**/*"],
+  rules: {
+    complexity: ["warn", 30],
     "default-case": 2,
     "dot-notation": 2,
-    "eqeqeq": 2,
+    eqeqeq: 2,
     "guard-for-in": 2,
     "no-constant-condition": 2,
     "no-dupe-keys": 2,
     "no-eval": 2,
     "no-unreachable": 2,
     "no-unused-vars": 0,
-    "no-void": ["error", { "allowAsStatement": true }],
+    "no-void": ["error", { allowAsStatement: true }],
     "prefer-destructuring": [
       "warn",
       {
-        "object": true,
-        "array": true
-      }
+        object: true,
+        array: true,
+      },
     ],
-    "camelcase": 0,
+    camelcase: 0,
     "@typescript-eslint/camelcase": 0,
     "@typescript-eslint/explicit-member-accessibility": 0,
     "@typescript-eslint/explicit-function-return-type": 0,
@@ -60,9 +61,8 @@
     "@typescript-eslint/no-use-before-define": 0,
     "@typescript-eslint/no-var-requires": 0,
     "@typescript-eslint/no-floating-promises": 2,
-    "prettier/prettier": "error",
     "standard/no-callback-literal": 0,
     "node/no-callback-literal": 0,
-    "@typescript-eslint/no-unused-vars": 0
-  }
-}
+    "@typescript-eslint/no-unused-vars": 0,
+  },
+};

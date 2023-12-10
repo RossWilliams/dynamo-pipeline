@@ -1,9 +1,9 @@
 /// <reference types="jest" />
 import { DocumentClient } from "aws-sdk/clients/dynamodb";
 import { Request } from "aws-sdk/lib/request";
-declare type Spy<TInput, TOutput> = jest.MockContext<Request<TOutput, Error>, [TInput, any?]>;
-declare type WrappedFn<TInput, TOutput> = (client: DocumentClient, spy: Spy<TInput, TOutput>) => Promise<void>;
-declare type MockReturn<TOutput> = {
+type Spy<TInput, TOutput> = jest.MockContext<Request<TOutput, Error>, [TInput, any?]>;
+type WrappedFn<TInput, TOutput> = (client: DocumentClient, spy: Spy<TInput, TOutput>) => Promise<void>;
+type MockReturn<TOutput> = {
     err?: Error;
     data?: TOutput;
 } | {
@@ -11,8 +11,9 @@ declare type MockReturn<TOutput> = {
     data?: TOutput;
 }[];
 export declare function setMockOn(on: boolean): void;
+type DynamoClientCommandName = "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
 interface MockSet<TOutput = Record<string, unknown>> {
-    name: "scan" | "query" | "delete" | "update" | "put" | "batchGet" | "batchWrite" | "transactGet";
+    name: DynamoClientCommandName;
     returns?: MockReturn<TOutput>;
     delay?: number;
 }

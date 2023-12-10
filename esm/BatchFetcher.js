@@ -21,7 +21,10 @@ export class BatchGetFetcher extends AbstractFetcher {
         const n = items.keys.length;
         let i = 0;
         while (i < n) {
-            chunks.push({ tableName: items.tableName, keys: items.keys.slice(i, (i += this.batchSize)) });
+            chunks.push({
+                tableName: items.tableName,
+                keys: items.keys.slice(i, (i += this.batchSize)),
+            });
         }
         return chunks;
     }

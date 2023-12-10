@@ -27,10 +27,12 @@ export class AbstractFetcher {
         return promise
             .then((data) => {
             this.activeRequests = this.activeRequests.filter((r) => r !== promise);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
             this.processResult(data);
         })
             .catch((e) => {
             this.activeRequests = this.activeRequests.filter((r) => r !== promise);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
             this.processError(e);
         });
     }

@@ -29,7 +29,10 @@ interface Item {
   };
 }
 
-const privatePipeline = new Pipeline("PrivateTableName-xxx", { pk: "id", sk: "sk" });
+const privatePipeline = new Pipeline("PrivateTableName-xxx", {
+  pk: "id",
+  sk: "sk",
+});
 
 await privatePipeline
   .query<Item>(
